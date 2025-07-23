@@ -451,10 +451,10 @@ export function useNotificationsApi() {
     try {
       const result = await apiCall(`/api/notifications/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ is_read: true }),
+        body: JSON.stringify({ isRead: true }),
       });
       
-      notificationsHook.updateNotification(id, { is_read: true });
+      notificationsHook.updateNotification(id, { isRead: true });
       return result;
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
@@ -468,8 +468,8 @@ export function useNotificationsApi() {
       
       // Update all notifications to read
       notificationsHook.notifications.forEach(notification => {
-        if (!notification.is_read) {
-          notificationsHook.updateNotification(notification.id, { is_read: true });
+        if (!notification.isRead) {
+          notificationsHook.updateNotification(notification.id, { isRead: true });
         }
       });
     } catch (error) {
