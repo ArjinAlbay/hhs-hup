@@ -10,6 +10,7 @@ interface AuthUser {
   email: string
   name: string
   role: 'admin' | 'club_leader' | 'member'
+  clubId?: string
   isActive: boolean
   emailVerified: boolean
   permissions: Array<{
@@ -55,22 +56,47 @@ export function useAuth() {
   // 🔍 User profile fetcher
   const fetchUserProfile = useCallback(async (authUser: User): Promise<AuthUser | null> => {
     try {
+      // Fetch user basic profile
       const { data: userProfile, error } = await supabase
         .from('users')
-        .select('id, email, name, role, is_active, permissions')
+        .select('id, email, name, role, is_active')
         .eq('id', authUser.id)
         .single()
 
       if (error) throw error
+
+      // For club leaders, fetch their club information
+      let clubId: string | undefined = undefined;
+      
+      if (userProfile.role === 'club_leader') {
+        // Club leaders should have a club where they are the leader
+        const { data: leaderClub } = await supabase
+          .from('clubs')
+          .select('id')
+          .eq('leader_id', authUser.id)
+          .single()
+        
+        clubId = leaderClub?.id;
+      } else if (userProfile.role === 'member') {
+        // Members get their club from club_members table
+        const { data: memberShip } = await supabase
+          .from('club_members')
+          .select('club_id')
+          .eq('user_id', authUser.id)
+          .single()
+        
+        clubId = memberShip?.club_id;
+      }
 
       return {
         id: userProfile.id,
         email: userProfile.email,
         name: userProfile.name,
         role: userProfile.role,
+        clubId: clubId,
         isActive: userProfile.is_active,
         emailVerified: !!authUser.email_confirmed_at,
-        permissions: Array.isArray(userProfile.permissions) ? userProfile.permissions : []
+        permissions: [] // Default empty permissions array since column doesn't exist
       }
     } catch (error) {
       console.error('❌ Auth: Profile fetch failed:', error)

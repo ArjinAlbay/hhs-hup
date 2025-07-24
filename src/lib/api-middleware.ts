@@ -38,7 +38,7 @@ export async function authenticateRequest(request: NextRequest): Promise<{
     // Get user profile from database
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
-      .select('id, email, role, is_active, name, club_id')
+      .select('id, email, role, is_active, name')
       .eq('id', user.id)
       .single();
 
@@ -81,12 +81,35 @@ export async function authenticateRequest(request: NextRequest): Promise<{
       return { user: null, error: 'User account is disabled' };
     }
 
+    // For club leaders, fetch their club information
+    let clubId: string | undefined = undefined;
+    
+    if (userProfile.role === 'club_leader') {
+      // Club leaders should have a club where they are the leader
+      const { data: leaderClub } = await supabase
+        .from('clubs')
+        .select('id')
+        .eq('leader_id', user.id)
+        .single()
+      
+      clubId = leaderClub?.id;
+    } else if (userProfile.role === 'member') {
+      // Members get their club from club_members table
+      const { data: memberShip } = await supabase
+        .from('club_members')
+        .select('club_id')
+        .eq('user_id', user.id)
+        .single()
+      
+      clubId = memberShip?.club_id;
+    }
+
     return {
       user: {
         id: userProfile.id,
         email: userProfile.email,
         role: userProfile.role,
-        clubId: userProfile.club_id ?? undefined
+        clubId: clubId
       },
       error: null
     };
