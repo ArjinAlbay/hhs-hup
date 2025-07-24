@@ -15,7 +15,7 @@ export class DatabaseService {
     const supabase = this.getClient()
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, name, role, is_active, created_at, updated_at')
       .eq('id', id)
       .single()
     
@@ -26,7 +26,7 @@ export class DatabaseService {
     const supabase = this.getClient()
     const { data, error } = await supabase
       .from('users')
-      .select('*')
+      .select('id, email, name, role, is_active, created_at, updated_at')
       .eq('email', email)
       .single()
     

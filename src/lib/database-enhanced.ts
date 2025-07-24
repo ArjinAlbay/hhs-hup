@@ -97,7 +97,7 @@ export class EnhancedDatabaseService {
     const supabase = await this.getClient();
     return await supabase
       .from('users')
-      .select('*')
+      .select('id, email, name, role, is_active, created_at, updated_at')
       .eq('id', id)
       .single();
   }
