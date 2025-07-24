@@ -37,13 +37,20 @@ export default function AuthRedirect({
   useEffect(() => {
     if ((!initialized && !forceReady) || redirectedRef.current) return
 
-   if (process.env.NODE_ENV === 'development') {
-    console.log('🔄 AuthRedirect:', { redirectType, isAuthenticated, initialized, forceReady })
-}
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 AuthRedirect DEBUG:', { 
+        redirectType, 
+        isAuthenticated, 
+        initialized, 
+        forceReady,
+        shouldRedirect: redirectType === 'authenticated' && isAuthenticated,
+        shouldRedirectToLogin: redirectType === 'unauthenticated' && !isAuthenticated
+      })
+    }
 
     if (redirectType === 'authenticated' && isAuthenticated) {
       if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 AuthRedirect: Authenticated user on login page, redirecting to:', redirectTo)
+        console.log('🔄 AuthRedirect: Authenticated user on login page, redirecting to:', redirectTo)
       }
       redirectedRef.current = true
       router.replace(redirectTo)
@@ -118,12 +125,26 @@ export default function AuthRedirect({
     (redirectType === 'authenticated' && !isAuthenticated) ||
     (redirectType === 'unauthenticated' && isAuthenticated)
 
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🎯 AuthRedirect Render Decision:', {
+      redirectType,
+      isAuthenticated,
+      shouldRenderChildren,
+      willRedirect: redirectedRef.current
+    })
+  }
+
   if (!shouldRenderChildren) {
     return fallbackComponent || (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Redirecting...</p>
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-4 text-xs text-gray-400">
+              Debug: redirectType={redirectType}, isAuth={String(isAuthenticated)}, shouldRender={String(shouldRenderChildren)}
+            </div>
+          )}
         </div>
       </div>
     )

@@ -3,15 +3,15 @@ import MainLayout from '@/components/layout/MainLayout';
 import ClubDetail from '@/components/club/ClubDetail';
 
 interface ClubDetailPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
-export default function ClubDetailPage({ params }: ClubDetailPageProps) {
+export default async function ClubDetailPage({ params }: ClubDetailPageProps) {
+  const { id } = await params;
+  
   return (
-
-      <MainLayout>
-        <ClubDetail clubId={params.id} />
-      </MainLayout>
- 
+    <MainLayout>
+      <ClubDetail clubId={id} />
+    </MainLayout>
   );
 }
