@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +30,7 @@ import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 
-export default function NotificationCenter() {
+function NotificationCenter() {
   const { user } = useAuth();
   const { 
     notifications, 
@@ -42,15 +42,17 @@ export default function NotificationCenter() {
   } = useNotificationsApi();
   
   const [activeTab, setActiveTab] = useState('all');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Calculate unread count
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
+  // Fetch notifications on mount and when user changes
   useEffect(() => {
-    if (user) {
-      fetchNotifications();
+    if (user?.id && !isInitialized) {
+      fetchNotifications().finally(() => setIsInitialized(true));
     }
-  }, [user]); // Removed fetchNotifications from dependency array to prevent infinite loop
+  }, [user?.id, isInitialized]); // Only fetch once per user
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -71,8 +73,8 @@ export default function NotificationCenter() {
   };
 
   const filteredNotifications = notifications.filter(notification => {
-    if (activeTab === 'unread') return !notification.is_read;
-    if (activeTab === 'read') return notification.is_read;
+    if (activeTab === 'unread') return !notification.isRead;
+    if (activeTab === 'read') return notification.isRead;
     return true;
   });
 
@@ -100,7 +102,7 @@ export default function NotificationCenter() {
 
   const handleMarkAllAsRead = async () => {
     try {
-      const unreadNotifications = notifications.filter(n => !n.is_read);
+      const unreadNotifications = notifications.filter(n => !n.isRead);
       
       await Promise.all(
         unreadNotifications.map(notification =>
@@ -133,7 +135,7 @@ export default function NotificationCenter() {
 
   // Header dropdown version
   const NotificationDropdown = () => (
-    <DropdownMenu>
+    <DropdownMenu key={`notifications-${user?.id || 'anonymous'}`}>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="relative">
           <Bell className="h-5 w-5" />
@@ -169,7 +171,7 @@ export default function NotificationCenter() {
               key={notification.id}
               className={cn(
                 "p-3 cursor-pointer border-l-4",
-                !notification.is_read && "bg-blue-50",
+                !notification.isRead && "bg-blue-50",
                 getNotificationTypeColor(notification.type)
               )}
               onClick={() => handleNotificationClick(notification.id, notification.actionUrl)}
@@ -181,7 +183,7 @@ export default function NotificationCenter() {
                 <div className="flex-1 min-w-0">
                   <p className={cn(
                     "text-sm",
-                    !notification.is_read && "font-semibold"
+                    !notification.isRead && "font-semibold"
                   )}>
                     {notification.title}
                   </p>
@@ -189,10 +191,10 @@ export default function NotificationCenter() {
                     {notification.message}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {format(new Date(notification.created_at), 'dd MMM HH:mm', { locale: tr })}
+                    {format(new Date(notification.createdAt), 'dd MMM HH:mm', { locale: tr })}
                   </p>
                 </div>
-                {!notification.is_read && (
+                {!notification.isRead && (
                   <div className="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
                 )}
               </div>
@@ -281,10 +283,10 @@ export default function NotificationCenter() {
                 key={notification.id}
                 className={cn(
                   "cursor-pointer hover:shadow-md transition-shadow border-l-4",
-                  !notification.is_read && "bg-blue-50",
+                  !notification.isRead && "bg-blue-50",
                   getNotificationTypeColor(notification.type)
                 )}
-                onClick={() => handleNotificationClick(notification.id, notification.action_url)}
+                onClick={() => handleNotificationClick(notification.id, notification.actionUrl)}
               >
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between">
@@ -293,7 +295,7 @@ export default function NotificationCenter() {
                       <div className="flex-1">
                         <h3 className={cn(
                           "text-sm",
-                          !notification.is_read && "font-semibold text-gray-900"
+                          !notification.isRead && "font-semibold text-gray-900"
                         )}>
                           {notification.title}
                         </h3>
@@ -303,9 +305,9 @@ export default function NotificationCenter() {
                         <div className="flex items-center space-x-4 mt-2">
                           <span className="text-xs text-gray-500 flex items-center">
                             <Clock className="mr-1 h-3 w-3" />
-                            {format(new Date(notification.created_at), 'dd MMMM yyyy HH:mm', { locale: tr })}
+                            {format(new Date(notification.createdAt), 'dd MMMM yyyy HH:mm', { locale: tr })}
                           </span>
-                          {notification.action_url && (
+                          {notification.actionUrl && (
                             <span className="text-xs text-blue-600">
                               Tıklayarak görüntüle
                             </span>
@@ -314,7 +316,7 @@ export default function NotificationCenter() {
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
-                      {!notification.is_read && (
+                      {!notification.isRead && (
                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       )}
                       <Button
@@ -343,3 +345,5 @@ export default function NotificationCenter() {
   // You can use NotificationPage for a dedicated page
   return <NotificationDropdown />;
 }
+
+export default memo(NotificationCenter);

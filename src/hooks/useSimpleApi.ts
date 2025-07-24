@@ -83,7 +83,7 @@ export function useClubsApi() {
     } finally {
       clubsHook.setLoading(false);
     }
-  }, [clubsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const createClub = useCallback(async (clubData: { name: string; description: string; type?: string }) => {
     try {
@@ -98,7 +98,7 @@ export function useClubsApi() {
       console.error('Failed to create club:', error);
       throw error;
     }
-  }, [clubsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const updateClub = useCallback(async (id: string, updates: any) => {
     try {
@@ -113,7 +113,7 @@ export function useClubsApi() {
       console.error('Failed to update club:', error);
       throw error;
     }
-  }, [clubsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const deleteClub = useCallback(async (id: string) => {
     try {
@@ -123,7 +123,7 @@ export function useClubsApi() {
       console.error('Failed to delete club:', error);
       throw error;
     }
-  }, [clubsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   return {
     ...clubsHook,
@@ -159,7 +159,7 @@ export function useFilesApi() {
     } finally {
       filesHook.setLoading(false);
     }
-  }, [filesHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const fetchFolders = useCallback(async (clubId: string, options: ApiOptions = {}) => {
     try {
@@ -181,7 +181,7 @@ export function useFilesApi() {
     } finally {
       foldersHook.setLoading(false);
     }
-  }, [foldersHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const uploadFile = useCallback(async (fileData: FormData) => {
     try {
@@ -208,7 +208,7 @@ export function useFilesApi() {
     } finally {
       filesHook.setLoading(false);
     }
-  }, [filesHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const deleteFile = useCallback(async (id: string) => {
     try {
@@ -218,7 +218,7 @@ export function useFilesApi() {
       console.error('Failed to delete file:', error);
       throw error;
     }
-  }, [filesHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const createFolder = useCallback(async (name: string, clubId: string, parentId?: string) => {
     try {
@@ -240,7 +240,7 @@ export function useFilesApi() {
     } finally {
       foldersHook.setLoading(false);
     }
-  }, [foldersHook, fetchFolders]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   return {
     // Files
@@ -295,7 +295,7 @@ export function useMeetingsApi() {
     } finally {
       meetingsHook.setLoading(false);
     }
-  }, [meetingsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const createMeeting = useCallback(async (meetingData: any) => {
     try {
@@ -310,7 +310,7 @@ export function useMeetingsApi() {
       console.error('Failed to create meeting:', error);
       throw error;
     }
-  }, [meetingsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const updateMeeting = useCallback(async (id: string, updates: any) => {
     try {
@@ -325,7 +325,7 @@ export function useMeetingsApi() {
       console.error('Failed to update meeting:', error);
       throw error;
     }
-  }, [meetingsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const deleteMeeting = useCallback(async (id: string) => {
     try {
@@ -335,7 +335,7 @@ export function useMeetingsApi() {
       console.error('Failed to delete meeting:', error);
       throw error;
     }
-  }, [meetingsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   return {
     ...meetingsHook,
@@ -370,7 +370,7 @@ export function useTasksApi() {
     } finally {
       tasksHook.setLoading(false);
     }
-  }, [tasksHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const createTask = useCallback(async (taskData: any) => {
     try {
@@ -385,7 +385,7 @@ export function useTasksApi() {
       console.error('Failed to create task:', error);
       throw error;
     }
-  }, [tasksHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const updateTask = useCallback(async (id: string, updates: any) => {
     try {
@@ -400,7 +400,7 @@ export function useTasksApi() {
       console.error('Failed to update task:', error);
       throw error;
     }
-  }, [tasksHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const deleteTask = useCallback(async (id: string) => {
     try {
@@ -410,7 +410,7 @@ export function useTasksApi() {
       console.error('Failed to delete task:', error);
       throw error;
     }
-  }, [tasksHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   return {
     ...tasksHook,
@@ -445,7 +445,7 @@ export function useNotificationsApi() {
     } finally {
       notificationsHook.setLoading(false);
     }
-  }, [notificationsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const markAsRead = useCallback(async (id: string) => {
     try {
@@ -460,7 +460,7 @@ export function useNotificationsApi() {
       console.error('Failed to mark notification as read:', error);
       throw error;
     }
-  }, [notificationsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
 
   const markAllAsRead = useCallback(async () => {
     try {
@@ -476,12 +476,23 @@ export function useNotificationsApi() {
       console.error('Failed to mark all notifications as read:', error);
       throw error;
     }
-  }, [notificationsHook]);
+  }, []); // Remove dependencies - Zustand provides stable references
+
+  const deleteNotification = useCallback(async (id: string) => {
+    try {
+      await apiCall(`/api/notifications/${id}`, { method: 'DELETE' });
+      notificationsHook.deleteNotification(id);
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      throw error;
+    }
+  }, []); // Remove dependencies - Zustand provides stable references
 
   return {
     ...notificationsHook,
     fetchNotifications,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
   };
 }

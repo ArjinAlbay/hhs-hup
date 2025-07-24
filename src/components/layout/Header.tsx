@@ -1,6 +1,7 @@
 // src/components/layout/Header.tsx - SIMPLIFIED
 'use client';
 
+import { memo } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificationsApi, useTasksApi, useClubsApi, useMeetingsApi } from '@/hooks/useSimpleApi';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Bell, LogOut, Settings, User, RefreshCw } from 'lucide-react';
 import NotificationCenter from '@/components/notification/NotificationCenter';
 
-export default function Header() {
+function Header() {
   const { user, logout } = useAuth();
   const { notifications } = useNotificationsApi();
   const { fetchTasks, isLoading: tasksLoading } = useTasksApi();
@@ -23,7 +24,7 @@ export default function Header() {
   const { fetchMeetings, isLoading: meetingsLoading } = useMeetingsApi();
   
   // Calculate unread notifications
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
   
   // Check if any data is being refreshed
   const isRefreshing = tasksLoading || clubsLoading || meetingsLoading;
@@ -121,3 +122,5 @@ export default function Header() {
     </header>
   );
 }
+
+export default memo(Header);
