@@ -8,6 +8,7 @@ export interface AuthUser {
   role: 'admin' | 'club_leader' | 'member'
   clubId?: string
   isActive: boolean
+  permissions: string[]
 }
 
 export class AuthService {
@@ -44,6 +45,8 @@ export class AuthService {
       clubId = memberShip?.club_id
     }
 
+    const permissions = await this.getRolePermissions(userData.role)
+
     return {
       id: userData.id,
       email: userData.email,
@@ -51,7 +54,33 @@ export class AuthService {
       role: userData.role,
       clubId: clubId,
       isActive: userData.is_active,
+      permissions
     }
+  }
+
+  static async getRolePermissions(role: 'admin' | 'club_leader' | 'member'): Promise<string[]> {
+    const supabase = await createClient()
+    
+    const { data: rolePermissions, error } = await supabase
+      .from('role_permissions')
+      .select(`
+        permissions!inner(name)
+      `)
+      .eq('role', role)
+
+    if (error || !rolePermissions) {
+      console.warn(`Could not fetch permissions for role: ${role}`)
+      return []
+    }
+
+    return rolePermissions.map((rp: any) => rp.permissions.name)
+  }
+
+  static async hasPermission(userId: string, permissionName: string): Promise<boolean> {
+    const user = await this.getCurrentUser()
+    if (!user) return false
+    
+    return user.permissions.includes(permissionName)
   }
 
   static async signInWithPassword(email: string, password: string) {

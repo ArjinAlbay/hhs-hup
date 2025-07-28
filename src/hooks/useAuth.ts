@@ -11,6 +11,7 @@ interface User {
   role: 'admin' | 'club_leader' | 'member'
   is_active: boolean
   clubId?: string
+  permissions: string[]
 }
 
 interface AuthState {
@@ -27,6 +28,25 @@ export function useAuth() {
   })
   
   const supabase = createClient()
+
+  const getRolePermissions = useCallback(async (role: 'admin' | 'club_leader' | 'member'): Promise<string[]> => {
+    try {
+      const { data: rolePermissions, error } = await supabase
+        .from('role_permissions')
+        .select(`
+          permissions!inner(name)
+        `)
+        .eq('role', role)
+
+      if (error || !rolePermissions) {
+        return []
+      }
+
+      return rolePermissions.map((rp: any) => rp.permissions.name)
+    } catch {
+      return []
+    }
+  }, [supabase])
 
   const fetchUserProfile = useCallback(async (authUser: SupabaseUser): Promise<User | null> => {
     try {
@@ -52,12 +72,15 @@ export function useAuth() {
 
           if (!newProfile) return null
           
+          const permissions = await getRolePermissions('member')
+          
           return {
             id: newProfile.id,
             email: newProfile.email,
             name: newProfile.name,
             role: newProfile.role,
-            is_active: newProfile.is_active
+            is_active: newProfile.is_active,
+            permissions
           }
         }
         return null
@@ -83,18 +106,21 @@ export function useAuth() {
         clubId = membership?.club_id
       }
 
+      const permissions = await getRolePermissions(profile.role)
+
       return {
         id: profile.id,
         email: profile.email,
         name: profile.name,
         role: profile.role,
         is_active: profile.is_active,
-        clubId
+        clubId,
+        permissions
       }
     } catch {
       return null
     }
-  }, [supabase])
+  }, [supabase, getRolePermissions])
 
   useEffect(() => {
     let mounted = true
@@ -154,12 +180,22 @@ export function useAuth() {
     setState({ user: null, isLoading: false, error: null })
   }, [supabase])
 
+  const hasPermission = useCallback((permissionName: string): boolean => {
+    return state.user?.permissions?.includes(permissionName) || false
+  }, [state.user?.permissions])
+
+  const hasAnyPermission = useCallback((permissionNames: string[]): boolean => {
+    return permissionNames.some(permission => hasPermission(permission))
+  }, [hasPermission])
+
   return {
     ...state,
     isAuthenticated: !!state.user,
     isAdmin: state.user?.role === 'admin',
     isLeader: state.user?.role === 'club_leader',
     isMember: state.user?.role === 'member',
+    hasPermission,
+    hasAnyPermission,
     signOut
   }
 }
