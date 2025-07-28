@@ -1,94 +1,123 @@
-'use client';
+'use client'
 
-import { useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
+import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useAuth } from '@/hooks/useAuth'
+import { DatabaseService } from '@/lib/database'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { FileText, RefreshCw, User, Calendar } from 'lucide-react'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Calendar, User, Clock, FileText, RefreshCw } from 'lucide-react';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
-import { useTasksApi } from '@/hooks/useSimpleApi';
+interface Task {
+  id: string
+  title: string
+  description: string
+  status: string
+  priority: string
+  dueDate?: string
+  assigneeName?: string
+  creatorName?: string
+  clubName?: string
+  createdAt: string
+}
 
 interface TaskListProps {
-  clubId?: string;
-  userId?: string;
+  clubId?: string
+  userId?: string
 }
 
 export default function TaskList({ clubId, userId }: TaskListProps) {
-  const { user } = useAuth();
-  const { 
-    tasks, 
-    isLoading, 
-    error, 
-    fetchTasks 
-  } = useTasksApi();
+  const { user } = useAuth()
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const fetchTasks = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const filters = {
+        clubId,
+        userId: userId || user?.id
+      }
+
+      const result = await DatabaseService.getTasks(filters, {
+        page: 1,
+        limit: 50,
+        sortBy: 'due_date',
+        sortOrder: 'asc'
+      })
+
+      if (result.error) {
+        setError('Görevler yüklenemedi')
+      } else {
+        setTasks(result.data)
+      }
+    } catch (err) {
+      setError('Bağlantı hatası')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [clubId, userId, user?.id])
 
   useEffect(() => {
-    const options: any = {};
-    if (clubId) {
-      options.clubId = clubId;
-    } else if (userId) {
-      options.userId = userId;
-    } else if (user) {
-      options.userId = user.id;
+    if (user) {
+      fetchTasks()
     }
-    fetchTasks(options);
-  }, [clubId, userId, user]); // Removed fetchTasks from dependency array
+  }, [user, fetchTasks])
 
-  // Handle refresh button click
-  const handleRefresh = () => {
-    const options: any = {};
-    if (clubId) {
-      options.clubId = clubId;
-    } else if (userId) {
-      options.userId = userId;
-    } else if (user?.id) {
-      options.userId = user.id;
-    }
-    fetchTasks(options);
-  };
+  const handleRefresh = useCallback(() => {
+    fetchTasks()
+  }, [fetchTasks])
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
-      case 'pending': return 'bg-gray-100 text-gray-800';
-      case 'in_progress': return 'bg-blue-100 text-blue-800';
-      case 'submitted': return 'bg-yellow-100 text-yellow-800';
-      case 'completed': return 'bg-green-100 text-green-800';
-      case 'rejected': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'pending': return 'bg-gray-100 text-gray-800'
+      case 'in_progress': return 'bg-blue-100 text-blue-800'
+      case 'submitted': return 'bg-yellow-100 text-yellow-800'
+      case 'completed': return 'bg-green-100 text-green-800'
+      case 'rejected': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
-  };
+  }, [])
 
-  const getStatusName = (status: string) => {
+  const getStatusName = useCallback((status: string) => {
     switch (status) {
-      case 'pending': return 'Bekliyor';
-      case 'in_progress': return 'Devam Ediyor';
-      case 'submitted': return 'Teslim Edildi';
-      case 'completed': return 'Tamamlandı';
-      case 'rejected': return 'Reddedildi';
-      default: return status;
+      case 'pending': return 'Bekliyor'
+      case 'in_progress': return 'Devam Ediyor'
+      case 'submitted': return 'Teslim Edildi'
+      case 'completed': return 'Tamamlandı'
+      case 'rejected': return 'Reddedildi'
+      default: return status
     }
-  };
+  }, [])
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = useCallback((priority: string) => {
     switch (priority) {
-      case 'high': return 'bg-red-100 text-red-800';
-      case 'medium': return 'bg-yellow-100 text-yellow-800';
-      case 'low': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'high': return 'bg-red-100 text-red-800'
+      case 'medium': return 'bg-yellow-100 text-yellow-800'
+      case 'low': return 'bg-green-100 text-green-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
-  };
+  }, [])
 
-  const getPriorityName = (priority: string) => {
+  const getPriorityName = useCallback((priority: string) => {
     switch (priority) {
-      case 'high': return 'Yüksek';
-      case 'medium': return 'Orta';
-      case 'low': return 'Düşük';
-      default: return priority;
+      case 'high': return 'Yüksek'
+      case 'medium': return 'Orta'
+      case 'low': return 'Düşük'
+      default: return priority
     }
-  };
+  }, [])
+
+  const taskSummary = useMemo(() => {
+    const pending = tasks.filter(t => t.status === 'pending').length
+    const inProgress = tasks.filter(t => t.status === 'in_progress').length
+    const completed = tasks.filter(t => t.status === 'completed').length
+    
+    return { pending, inProgress, completed, total: tasks.length }
+  }, [tasks])
 
   if (error && tasks.length === 0) {
     return (
@@ -107,13 +136,17 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
           Tekrar Dene
         </Button>
       </div>
-    );
+    )
   }
 
   if (isLoading && tasks.length === 0) {
     return (
       <div className="space-y-4">
-        {[...Array(3)].map((_, i) => (
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-medium text-gray-900">Görevler</h3>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -122,7 +155,7 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
           </Card>
         ))}
       </div>
-    );
+    )
   }
 
   if (tasks.length === 0) {
@@ -136,16 +169,22 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
           {clubId ? 'Bu kulüpte henüz görev oluşturulmamış.' : 'Size atanmış bir görev bulunmuyor.'}
         </p>
       </div>
-    );
+    )
   }
 
   return (
     <div className="space-y-4">
-      {/* Header with refresh button */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-gray-900">
-          Görevler ({tasks.length})
-        </h3>
+        <div>
+          <h3 className="text-lg font-medium text-gray-900">
+            Görevler ({taskSummary.total})
+          </h3>
+          <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
+            <span>Bekliyor: {taskSummary.pending}</span>
+            <span>Devam Ediyor: {taskSummary.inProgress}</span>
+            <span>Tamamlandı: {taskSummary.completed}</span>
+          </div>
+        </div>
         <Button
           onClick={handleRefresh}
           variant="outline"
@@ -160,8 +199,7 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
         </Button>
       </div>
 
-      {/* Tasks list */}
-      {tasks.map((task: any) => (
+      {tasks.map((task) => (
         <Card key={task.id} className="hover:shadow-md transition-shadow">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between">
@@ -180,49 +218,32 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
             <p className="text-gray-600 mb-4">{task.description}</p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-500">
-              <div className="flex items-center space-x-2">
-                <User className="h-4 w-4" />
-                <span>Atanan: {task.assignee_name || 'Belirlenmemiş'}</span>
-              </div>
+              {task.assigneeName && (
+                <div className="flex items-center space-x-2">
+                  <User className="h-4 w-4" />
+                  <span>Atanan: {task.assigneeName}</span>
+                </div>
+              )}
               
+              {task.dueDate && (
+                <div className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>
+                    Bitiş: {new Date(task.dueDate).toLocaleDateString('tr-TR')}
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-center space-x-2">
                 <Calendar className="h-4 w-4" />
                 <span>
-                  Başlangıç: {task.start_date ? format(new Date(task.start_date), 'dd MMM yyyy', { locale: tr }) : 'Belirlenmemiş'}
-                </span>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Clock className="h-4 w-4" />
-                <span>
-                  Bitiş: {task.due_date ? format(new Date(task.due_date), 'dd MMM yyyy', { locale: tr }) : 'Belirlenmemiş'}
+                  Oluşturuldu: {new Date(task.createdAt).toLocaleDateString('tr-TR')}
                 </span>
               </div>
             </div>
-
-            {task.attachments && task.attachments.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Ekler:</h4>
-                <div className="flex flex-wrap gap-2">
-                  {task.attachments.map((attachment: any, index: number) => (
-                    <Badge key={index} variant="outline" className="text-xs">
-                      <FileText className="mr-1 h-3 w-3" />
-                      {attachment.name}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
       ))}
-      
-      {/* Loading indicator when refreshing */}
-      {isLoading && tasks.length > 0 && (
-        <div className="text-center py-4">
-          <RefreshCw className="h-4 w-4 animate-spin mx-auto text-gray-400" />
-        </div>
-      )}
     </div>
-  );
+  )
 }
