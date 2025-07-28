@@ -1,93 +1,155 @@
-// src/lib/database.ts
 import { createClient } from '@/utils/supabase/client'
 import { Database } from '@/types/database'
 
 type Tables = Database['public']['Tables']
 
+interface QueryOptions {
+  page?: number
+  limit?: number
+  sortBy?: string
+  sortOrder?: 'asc' | 'desc'
+}
+
+interface UserContext {
+  id: string
+  role: 'admin' | 'club_leader' | 'member'
+  clubId?: string
+}
+
 export class DatabaseService {
-  // Browser-safe client
   private static getClient() {
     return createClient()
   }
 
-  // Users
-  static async getUser(id: string) {
+  private static async getUserContext(userId: string): Promise<UserContext | null> {
     const supabase = this.getClient()
-    const { data, error } = await supabase
+    
+    const { data: user, error } = await supabase
       .from('users')
-      .select('id, email, name, role, is_active, created_at, updated_at')
-      .eq('id', id)
+      .select('id, role')
+      .eq('id', userId)
       .single()
+
+    if (error || !user) return null
+
+    let clubId: string | undefined
     
-    return { data, error }
+    if (user.role === 'club_leader') {
+      const { data: club } = await supabase
+        .from('clubs')
+        .select('id')
+        .eq('leader_id', userId)
+        .single()
+      clubId = club?.id
+    } else if (user.role === 'member') {
+      const { data: membership } = await supabase
+        .from('club_members')
+        .select('club_id')
+        .eq('user_id', userId)
+        .single()
+      clubId = membership?.club_id
+    }
+
+    return {
+      id: user.id,
+      role: user.role,
+      clubId
+    }
   }
 
-  static async getUserByEmail(email: string) {
+  private static buildPaginatedQuery(
+    tableName: string,
+    selectFields: string,
+    options: QueryOptions = {}
+  ) {
     const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, email, name, role, is_active, created_at, updated_at')
-      .eq('email', email)
-      .single()
-    
-    return { data, error }
-  }
+    const { page = 1, limit = 20, sortBy, sortOrder = 'desc' } = options
+    const offset = (page - 1) * limit
 
-  static async createUser(user: Tables['users']['Insert']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('users')
-      .insert(user)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  static async getUsers() {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, name, email, role, is_active')
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-    
-    return { data, error }
-  }
-
-  // Clubs
-  static async getClubs(userId?: string) {
-    const supabase = this.getClient()
     let query = supabase
-      .from('clubs')
-      .select(`
-        *,
-        leader:users!clubs_leader_id_fkey(name),
-        club_members(user_id)
-      `)
-      .eq('is_active', true)
+      .from(tableName)
+      .select(selectFields, { count: 'exact' })
+      .range(offset, offset + limit - 1)
 
-    const { data, error } = await query
+    if (sortBy) {
+      query = query.order(sortBy, { ascending: sortOrder === 'asc' })
+    } else {
+      query = query.order('created_at', { ascending: false })
+    }
+
+    return query
+  }
+
+  static async getUsers(options: QueryOptions = {}) {
+    const query = this.buildPaginatedQuery(
+      'users',
+      'id, name, email, role, is_active, created_at',
+      options
+    ).eq('is_active', true)
+
+    const { data, error, count } = await query
     
-    // Transform data to match frontend expectations
+    return {
+      data: data || [],
+      pagination: {
+        page: options.page || 1,
+        limit: options.limit || 20,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / (options.limit || 20))
+      },
+      error
+    }
+  }
+
+  static async getClubs(userId?: string, options: QueryOptions = {}) {
+    const userContext = userId ? await this.getUserContext(userId) : null
+    
+    let query = this.buildPaginatedQuery(
+      'clubs',
+      `*,
+       leader:users!clubs_leader_id_fkey(name),
+       _count:club_members(count)`,
+      options
+    ).eq('is_active', true)
+
+    if (userContext?.role === 'club_leader') {
+      query = query.eq('leader_id', userId)
+    }
+
+    const { data, error, count } = await query
+    
     const transformedData = data?.map(club => ({
       ...club,
       leaderName: club.leader?.name || 'Unknown',
-      memberCount: club.club_members?.length || 0,
-      memberIds: club.club_members?.map((m: Tables['club_members']['Row']) => m.user_id) || []
+      memberCount: club._count?.[0]?.count || 0
     }))
 
-    return { data: transformedData, error }
+    return {
+      data: transformedData || [],
+      pagination: {
+        page: options.page || 1,
+        limit: options.limit || 20,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / (options.limit || 20))
+      },
+      error
+    }
   }
 
-  static async getClub(id: string) {
+  static async getClub(id: string, userId?: string) {
+    const userContext = userId ? await this.getUserContext(userId) : null
     const supabase = this.getClient()
+
+    if (userContext?.role === 'club_leader' && userContext.clubId !== id) {
+      return { data: null, error: { message: 'Access denied' } }
+    }
+
     const { data, error } = await supabase
       .from('clubs')
       .select(`
         *,
         leader:users!clubs_leader_id_fkey(name),
-        club_members(user_id, users(name))
+        members:club_members(user_id, users(name))
       `)
       .eq('id', id)
       .eq('is_active', true)
@@ -98,8 +160,8 @@ export class DatabaseService {
         data: {
           ...data,
           leaderName: data.leader?.name || 'Unknown',
-          memberCount: data.club_members?.length || 0,
-          memberIds: data.club_members?.map((m: Tables['club_members']['Row']) => m.user_id) || []
+          memberCount: data.members?.length || 0,
+          memberIds: data.members?.map((m: any) => m.user_id) || []
         },
         error
       }
@@ -108,345 +170,162 @@ export class DatabaseService {
     return { data, error }
   }
 
-  static async createClub(club: Tables['clubs']['Insert']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('clubs')
-      .insert(club)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  // Club Memberships
-  static async joinClub(clubId: string, userId: string) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('club_members')
-      .insert({ club_id: clubId, user_id: userId })
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  // Tasks
   static async getTasks(filters: {
-    clubId?: string;
-    userId?: string;
-    status?: string;
-  } = {}) {
-    const supabase = this.getClient()
-    let query = supabase
-      .from('tasks')
-      .select(`
-        *,
-        assigned_by_user:users!tasks_assigned_by_fkey(name),
-        assigned_to_user:users!tasks_assigned_to_fkey(name),
-        club:clubs(name)
-      `)
-      .order('created_at', { ascending: false })
+    clubId?: string
+    userId?: string
+    status?: string
+  } = {}, options: QueryOptions = {}) {
+    const userContext = filters.userId ? await this.getUserContext(filters.userId) : null
+    
+    let query = this.buildPaginatedQuery(
+      'tasks',
+      `*,
+       assignee:users!tasks_assigned_to_fkey(name),
+       creator:users!tasks_assigned_by_fkey(name),
+       club:clubs(name)`,
+      options
+    )
 
     if (filters.clubId) {
       query = query.eq('club_id', filters.clubId)
-    }
-
-    if (filters.userId) {
-      query = query.or(`assigned_to.eq.${filters.userId},assigned_by.eq.${filters.userId}`)
     }
 
     if (filters.status) {
       query = query.eq('status', filters.status)
     }
 
-    const { data, error } = await query
-    return { data, error }
-  }
-
-  static async createTask(task: Tables['tasks']['Insert']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('tasks')
-      .insert(task)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  static async updateTask(id: string, updates: Tables['tasks']['Update']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('tasks')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  // Activities (Notifications)
-  static async getActivities(userId: string, type?: string) {
-    const supabase = this.getClient()
-    let query = supabase
-      .from('activities')
-      .select(`
-        *,
-        created_by_user:users!activities_created_by_fkey(name),
-        club:clubs(name)
-      `)
-      .contains('target_users', [userId])
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-
-    if (type) {
-      query = query.eq('type', type)
+    if (userContext) {
+      if (userContext.role === 'member') {
+        query = query.eq('assigned_to', userContext.id)
+      } else if (userContext.role === 'club_leader' && userContext.clubId) {
+        query = query.eq('club_id', userContext.clubId)
+      }
     }
 
-    const { data, error } = await query
-    return { data, error }
-  }
-
-  static async createActivity(activity: Tables['activities']['Insert']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('activities')
-      .insert(activity)
-      .select()
-      .single()
+    const { data, error, count } = await query
     
-    return { data, error }
+    return {
+      data: data || [],
+      pagination: {
+        page: options.page || 1,
+        limit: options.limit || 20,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / (options.limit || 20))
+      },
+      error
+    }
   }
 
-  // Meetings
   static async getMeetings(filters: {
-    clubId?: string;
-    userId?: string;
-  } = {}) {
-    const supabase = this.getClient()
-    let query = supabase
-      .from('meetings')
-      .select(`
-        *,
-        organizer:users!meetings_organizer_id_fkey(name),
-        club:clubs(name),
-        meeting_participants(
-          *,
-          user:users(name)
-        )
-      `)
-      .order('start_time', { ascending: true })
+    clubId?: string
+    userId?: string
+  } = {}, options: QueryOptions = {}) {
+    const userContext = filters.userId ? await this.getUserContext(filters.userId) : null
+    
+    let query = this.buildPaginatedQuery(
+      'meetings',
+      `*,
+       organizer:users!meetings_organizer_id_fkey(name),
+       club:clubs(name)`,
+      { ...options, sortBy: 'start_time', sortOrder: 'asc' }
+    )
 
     if (filters.clubId) {
       query = query.eq('club_id', filters.clubId)
     }
 
-    if (filters.userId) {
-      query = query.or(`organizer_id.eq.${filters.userId},meeting_participants.user_id.eq.${filters.userId}`)
+    if (userContext?.role === 'club_leader' && userContext.clubId) {
+      query = query.eq('club_id', userContext.clubId)
     }
 
-    const { data, error } = await query
-    return { data, error }
-  }
-
-  static async createMeeting(meeting: Tables['meetings']['Insert']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('meetings')
-      .insert(meeting)
-      .select()
-      .single()
+    const { data, error, count } = await query
     
-    return { data, error }
+    return {
+      data: data || [],
+      pagination: {
+        page: options.page || 1,
+        limit: options.limit || 20,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / (options.limit || 20))
+      },
+      error
+    }
   }
 
-  static async updateMeeting(id: string, updates: Tables['meetings']['Update']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('meetings')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  // Meeting Participants
-  static async addMeetingParticipant(participant: Tables['meeting_participants']['Insert']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('meeting_participants')
-      .insert(participant)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  static async updateMeetingResponse(meetingId: string, userId: string, response: 'accepted' | 'declined') {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('meeting_participants')
-      .update({ response })
-      .eq('meeting_id', meetingId)
-      .eq('user_id', userId)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  static async getMeetingById(id: string) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('meetings')
-      .select(`
-        *,
-        organizer:users!meetings_organizer_id_fkey(name),
-        club:clubs(name),
-        meeting_participants(
-          *,
-          user:users(name)
-        )
-      `)
-      .eq('id', id)
-      .single()
-
-    return { data, error }
-  }
-
-  // Files
   static async getFiles(filters: {
-    clubId: string;
-    folderId?: string;
-  }) {
-    const supabase = this.getClient()
-    let query = supabase
-      .from('files')
-      .select(`
-        *,
-        uploader:users!files_uploaded_by_fkey(name),
-        folder:folders(name)
-      `)
-      .eq('club_id', filters.clubId)
-      .order('created_at', { ascending: false })
+    clubId?: string
+    folderId?: string
+    userId?: string
+  } = {}, options: QueryOptions = {}) {
+    const userContext = filters.userId ? await this.getUserContext(filters.userId) : null
+    
+    let query = this.buildPaginatedQuery(
+      'files',
+      `*,
+       uploader:users!files_uploaded_by_fkey(name)`,
+      options
+    )
+
+    if (filters.clubId) {
+      query = query.eq('club_id', filters.clubId)
+    }
 
     if (filters.folderId) {
       query = query.eq('folder_id', filters.folderId)
-    } else {
-      query = query.is('folder_id', null)
     }
 
-    const { data, error } = await query
-    return { data, error }
+    if (userContext?.role === 'club_leader' && userContext.clubId) {
+      query = query.eq('club_id', userContext.clubId)
+    }
+
+    const { data, error, count } = await query
+    
+    return {
+      data: data || [],
+      pagination: {
+        page: options.page || 1,
+        limit: options.limit || 20,
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / (options.limit || 20))
+      },
+      error
+    }
   }
 
-  static async createFile(file: Tables['files']['Insert'] & { uploaded_by?: string }) {
+  static async createClub(club: Tables['clubs']['Insert']) {
     const supabase = this.getClient()
-    const fileData = {
-      ...file,
-      uploaded_by: file.uploaded_by || null,
-    }
-    
-    const { data, error } = await supabase
-      .from('files')
-      .insert(fileData)
+    return await supabase
+      .from('clubs')
+      .insert(club)
       .select()
       .single()
-    
-    return { data, error }
   }
 
-  static async updateFile(id: string, updates: Tables['files']['Update']) {
+  static async createTask(task: Tables['tasks']['Insert']) {
     const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('files')
+    return await supabase
+      .from('tasks')
+      .insert(task)
+      .select()
+      .single()
+  }
+
+  static async updateTask(id: string, updates: Tables['tasks']['Update']) {
+    const supabase = this.getClient()
+    return await supabase
+      .from('tasks')
       .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single()
-    
-    return { data, error }
   }
 
-  static async deleteFile(id: string) {
+  static async joinClub(clubId: string, userId: string) {
     const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('files')
-      .delete()
-      .eq('id', id)
+    return await supabase
+      .from('club_members')
+      .insert({ club_id: clubId, user_id: userId })
       .select()
       .single()
-    
-    return { data, error }
-  }
-
-  // Folders
-  static async getFolders(filters: {
-    clubId: string;
-    parentId?: string;
-  }) {
-    const supabase = this.getClient()
-    let query = supabase
-      .from('folders')
-      .select(`
-        *,
-        creator:users!folders_created_by_fkey(name)
-      `)
-      .eq('club_id', filters.clubId)
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-
-    if (filters.parentId) {
-      query = query.eq('parent_id', filters.parentId)
-    } else {
-      query = query.is('parent_id', null)
-    }
-
-    const { data, error } = await query
-    return { data, error }
-  }
-
-  static async createFolder(folder: Tables['folders']['Insert'] & { created_by?: string }) {
-    const supabase = this.getClient()
-    const folderData = {
-      ...folder,
-      created_by: folder.created_by || null,
-    }
-    
-    const { data, error } = await supabase
-      .from('folders')
-      .insert(folderData)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  static async updateFolder(id: string, updates: Tables['folders']['Update']) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('folders')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-    
-    return { data, error }
-  }
-
-  static async deleteFolder(id: string) {
-    const supabase = this.getClient()
-    const { data, error } = await supabase
-      .from('folders')
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-    
-    return { data, error }
   }
 }
