@@ -1,8 +1,9 @@
 // src/app/api/clubs/route.ts - Enhanced Clubs API with proper security
 import { NextRequest } from 'next/server';
-import { EnhancedDatabaseService } from '@/lib/database-enhanced';
+
 import { withAuth, ApiResponse, parsePagination } from '@/lib/api-middleware';
-import { validateClubData } from '@/lib/validation';
+import { DatabaseService } from '@/lib/database';
+
 
 // 🔒 GET /api/clubs - Get paginated clubs with role-based filtering
 export const GET = withAuth(async (request: NextRequest, user) => {
@@ -26,8 +27,8 @@ export const GET = withAuth(async (request: NextRequest, user) => {
       }
     };
 
-    const { data, error } = await EnhancedDatabaseService.getClubs(options, user.id);
-    
+    const { data, error } = await DatabaseService.getClubs(options, user.id);
+
     if (error) {
       console.error('Clubs fetch error:', error);
       return ApiResponse.error('Kulüpler yüklenemedi');
@@ -58,18 +59,12 @@ export const POST = withAuth(async (request: NextRequest, user) => {
   try {
     const body = await request.json();
     
-    // Validate input
-    const validation = validateClubData(body);
-    if (!validation.isValid) {
-      return ApiResponse.badRequest(
-        `Validation error: ${Object.values(validation.errors).join(', ')}`
-      );
-    }
+  
 
     const { name, description, type = 'social' } = body;
 
     // Check for duplicate club names
-    const { data: existingClub } = await EnhancedDatabaseService.getClubs({
+    const { data: existingClub } = await DatabaseService.getClubs({
       page: 1,
       limit: 1,
       filters: { name }
@@ -81,7 +76,7 @@ export const POST = withAuth(async (request: NextRequest, user) => {
 
     // Additional validation for club leaders (can only create one club)
     if (user.role === 'club_leader') {
-      const { data: userClubs } = await EnhancedDatabaseService.getClubs({
+      const { data: userClubs } = await DatabaseService.getClubs({
         page: 1,
         limit: 1,
         filters: { leader_id: user.id }
@@ -135,8 +130,8 @@ export const POST = withAuth(async (request: NextRequest, user) => {
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await EnhancedDatabaseService.createClub(clubData);
-    
+    const { data, error } = await DatabaseService.createClub(clubData);
+
     if (error) {
       console.error('Club creation error:', error);
       return ApiResponse.error('Kulüp oluşturulamadı');

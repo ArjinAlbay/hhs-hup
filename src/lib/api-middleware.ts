@@ -1,3 +1,6 @@
+// 🔥 SORUN 2: api-middleware.ts çok karmaşık - Simplify
+// src/lib/api-middleware.ts - Simplified Version
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 
@@ -8,19 +11,7 @@ export interface AuthenticatedUser {
   clubId?: string
 }
 
-export interface ApiResponse<T = any> {
-  success: boolean
-  data?: T
-  error?: string
-  message?: string
-  pagination?: {
-    page: number
-    limit: number
-    total: number
-    totalPages: number
-  }
-}
-
+// ✅ Simplified authentication
 export async function authenticateRequest(request: NextRequest): Promise<{
   user: AuthenticatedUser | null
   error: string | null
@@ -33,48 +24,19 @@ export async function authenticateRequest(request: NextRequest): Promise<{
       return { user: null, error: 'Authentication required' }
     }
 
+    // Get user profile
     const { data: userProfile, error: profileError } = await supabase
       .from('users')
       .select('id, email, role, is_active, name')
       .eq('id', user.id)
       .single()
 
-    if (profileError) {
-      if (profileError.code === 'PGRST116') {
-        const { data: newProfile, error: createError } = await supabase
-          .from('users')
-          .insert({
-            id: user.id,
-            email: user.email || '',
-            name: user.user_metadata?.name || user.email?.split('@')[0] || 'User',
-            role: 'member',
-            is_active: true
-          })
-          .select('id, email, role, is_active, name')
-          .single()
-
-        if (createError || !newProfile) {
-          return { user: null, error: 'Failed to create user profile' }
-        }
-
-        return {
-          user: {
-            id: newProfile.id,
-            email: newProfile.email,
-            role: newProfile.role
-          },
-          error: null
-        }
-      }
-      return { user: null, error: `Profile error: ${profileError.message}` }
+    if (profileError || !userProfile || !userProfile.is_active) {
+      return { user: null, error: 'User profile not found' }
     }
 
-    if (!userProfile || !userProfile.is_active) {
-      return { user: null, error: 'User account not found or disabled' }
-    }
-
+    // ✅ Simple clubId logic
     let clubId: string | undefined
-    
     if (userProfile.role === 'club_leader') {
       const { data: leaderClub } = await supabase
         .from('clubs')
@@ -82,13 +44,6 @@ export async function authenticateRequest(request: NextRequest): Promise<{
         .eq('leader_id', user.id)
         .single()
       clubId = leaderClub?.id
-    } else if (userProfile.role === 'member') {
-      const { data: memberShip } = await supabase
-        .from('club_members')
-        .select('club_id')
-        .eq('user_id', user.id)
-        .single()
-      clubId = memberShip?.club_id
     }
 
     return {
@@ -105,22 +60,32 @@ export async function authenticateRequest(request: NextRequest): Promise<{
   }
 }
 
+// ✅ Simplified authorization
 export function authorizeUser(
   user: AuthenticatedUser,
-  requiredRole?: 'admin' | 'club_leader' | 'member',
-  allowedRoles?: ('admin' | 'club_leader' | 'member')[]
+  allowedRoles?: ('admin' | 'club_leader' | 'member')[],
+  clubId?: string
 ): { authorized: boolean; error?: string } {
-  if (requiredRole && user.role !== requiredRole && user.role !== 'admin') {
+  
+  // Admin always authorized
+  if (user.role === 'admin') {
+    return { authorized: true }
+  }
+
+  // Check role permissions
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
     return { authorized: false, error: 'Insufficient permissions' }
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role) && user.role !== 'admin') {
-    return { authorized: false, error: 'Insufficient permissions' }
+  // Check club access for club leaders
+  if (clubId && user.role === 'club_leader' && user.clubId !== clubId) {
+    return { authorized: false, error: 'Club access denied' }
   }
 
   return { authorized: true }
 }
 
+// ✅ Simplified API Response helper
 export class ApiResponse {
   static success<T>(data: T, message?: string, pagination?: any) {
     return NextResponse.json({
@@ -160,10 +125,10 @@ export class ApiResponse {
   }
 }
 
+// ✅ Simplified withAuth middleware
 export function withAuth(
   handler: (request: NextRequest, user: AuthenticatedUser, ...args: any[]) => Promise<NextResponse>,
   options: {
-    requiredRole?: 'admin' | 'club_leader' | 'member'
     allowedRoles?: ('admin' | 'club_leader' | 'member')[]
   } = {}
 ) {
@@ -175,13 +140,8 @@ export function withAuth(
         return ApiResponse.unauthorized(error ?? 'Authentication required')
       }
 
-      if (options?.requiredRole || options?.allowedRoles) {
-        const { authorized, error: authError } = authorizeUser(
-          user,
-          options.requiredRole,
-          options.allowedRoles
-        )
-
+      if (options.allowedRoles) {
+        const { authorized, error: authError } = authorizeUser(user, options.allowedRoles)
         if (!authorized) {
           return ApiResponse.forbidden(authError)
         }
@@ -189,11 +149,13 @@ export function withAuth(
 
       return await handler(request, user, ...args)
     } catch (error) {
+      console.error('API middleware error:', error)
       return ApiResponse.error('Internal server error')
     }
   }
 }
 
+// ✅ Simple pagination helper
 export function parsePagination(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   return {

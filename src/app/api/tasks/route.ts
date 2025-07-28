@@ -1,8 +1,8 @@
 // src/app/api/tasks/route.ts - Enhanced Tasks API
 import { NextRequest } from 'next/server';
-import { EnhancedDatabaseService } from '@/lib/database-enhanced';
+
 import { withAuth, ApiResponse, parsePagination, authorizeUser } from '@/lib/api-middleware';
-import { validateTaskData } from '@/lib/validation';
+import { DatabaseService } from '@/lib/database';
 
 // 🔒 GET /api/tasks - Get paginated tasks with proper authorization
 export const GET = withAuth(async (request: NextRequest, user) => {
@@ -32,7 +32,7 @@ export const GET = withAuth(async (request: NextRequest, user) => {
       }
     }
 
-    const { data, error } = await EnhancedDatabaseService.getTasks(options, user.id);
+    const { data, error } = await DatabaseService.getTasks(options, user.id);
 
     if (error) {
       console.error('Tasks fetch error:', error);
@@ -51,13 +51,7 @@ export const POST = withAuth(async (request: NextRequest, user) => {
   try {
     const body = await request.json();
     
-    // Validate input
-    const validation = validateTaskData(body);
-    if (!validation.isValid) {
-      return ApiResponse.badRequest(
-        `Validation error: ${Object.values(validation.errors).join(', ')}`
-      );
-    }
+
 
     const { title, description, club_id, assigned_to, due_date, priority = 'medium' } = body;
 
@@ -97,7 +91,7 @@ export const POST = withAuth(async (request: NextRequest, user) => {
       created_at: new Date().toISOString(),
     };
 
-    const { data, error } = await EnhancedDatabaseService.createTask(taskData);
+    const { data, error } = await DatabaseService.createTask(taskData);
 
     if (error) {
       console.error('Task creation error:', error);

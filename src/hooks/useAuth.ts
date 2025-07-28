@@ -1,3 +1,5 @@
+
+
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
@@ -11,42 +13,24 @@ interface User {
   role: 'admin' | 'club_leader' | 'member'
   is_active: boolean
   clubId?: string
-  permissions: string[]
 }
 
 interface AuthState {
   user: User | null
   isLoading: boolean
   error: string | null
+  initialized: boolean
 }
 
 export function useAuth() {
   const [state, setState] = useState<AuthState>({
     user: null,
     isLoading: true,
-    error: null
+    error: null,
+    initialized: false // ✅ Initialize state
   })
   
   const supabase = createClient()
-
-  const getRolePermissions = useCallback(async (role: 'admin' | 'club_leader' | 'member'): Promise<string[]> => {
-    try {
-      const { data: rolePermissions, error } = await supabase
-        .from('role_permissions')
-        .select(`
-          permissions!inner(name)
-        `)
-        .eq('role', role)
-
-      if (error || !rolePermissions) {
-        return []
-      }
-
-      return rolePermissions.map((rp: any) => rp.permissions.name)
-    } catch {
-      return []
-    }
-  }, [supabase])
 
   const fetchUserProfile = useCallback(async (authUser: SupabaseUser): Promise<User | null> => {
     try {
@@ -58,6 +42,7 @@ export function useAuth() {
 
       if (error) {
         if (error.code === 'PGRST116') {
+          // Create new user profile
           const { data: newProfile } = await supabase
             .from('users')
             .insert({
@@ -72,15 +57,12 @@ export function useAuth() {
 
           if (!newProfile) return null
           
-          const permissions = await getRolePermissions('member')
-          
           return {
             id: newProfile.id,
             email: newProfile.email,
             name: newProfile.name,
             role: newProfile.role,
-            is_active: newProfile.is_active,
-            permissions
+            is_active: newProfile.is_active
           }
         }
         return null
@@ -88,8 +70,8 @@ export function useAuth() {
 
       if (!profile || !profile.is_active) return null
 
+  
       let clubId: string | undefined
-      
       if (profile.role === 'club_leader') {
         const { data: club } = await supabase
           .from('clubs')
@@ -97,16 +79,7 @@ export function useAuth() {
           .eq('leader_id', authUser.id)
           .single()
         clubId = club?.id
-      } else if (profile.role === 'member') {
-        const { data: membership } = await supabase
-          .from('club_members')
-          .select('club_id')
-          .eq('user_id', authUser.id)
-          .single()
-        clubId = membership?.club_id
       }
-
-      const permissions = await getRolePermissions(profile.role)
 
       return {
         id: profile.id,
@@ -114,19 +87,20 @@ export function useAuth() {
         name: profile.name,
         role: profile.role,
         is_active: profile.is_active,
-        clubId,
-        permissions
+        clubId
       }
     } catch {
       return null
     }
-  }, [supabase, getRolePermissions])
+  }, [supabase])
 
   useEffect(() => {
     let mounted = true
 
     const initAuth = async () => {
       try {
+        setState(prev => ({ ...prev, isLoading: true, error: null }))
+        
         const { data: { user: authUser } } = await supabase.auth.getUser()
         
         if (!mounted) return
@@ -137,17 +111,28 @@ export function useAuth() {
             setState({
               user: userProfile,
               isLoading: false,
-              error: userProfile ? null : 'Profile not found'
+              error: userProfile ? null : 'Profile not found',
+              initialized: true // ✅ Mark as initialized
             })
           }
         } else {
           if (mounted) {
-            setState({ user: null, isLoading: false, error: null })
+            setState({ 
+              user: null, 
+              isLoading: false, 
+              error: null,
+              initialized: true // ✅ Mark as initialized
+            })
           }
         }
       } catch (error) {
         if (mounted) {
-          setState({ user: null, isLoading: false, error: 'Auth error' })
+          setState({ 
+            user: null, 
+            isLoading: false, 
+            error: 'Auth error',
+            initialized: true 
+          })
         }
       }
     }
@@ -162,10 +147,16 @@ export function useAuth() {
         setState({
           user: userProfile,
           isLoading: false,
-          error: userProfile ? null : 'Profile not found'
+          error: userProfile ? null : 'Profile not found',
+          initialized: true
         })
       } else if (event === 'SIGNED_OUT') {
-        setState({ user: null, isLoading: false, error: null })
+        setState({ 
+          user: null, 
+          isLoading: false, 
+          error: null,
+          initialized: true
+        })
       }
     })
 
@@ -177,25 +168,21 @@ export function useAuth() {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
-    setState({ user: null, isLoading: false, error: null })
+    setState({ 
+      user: null, 
+      isLoading: false, 
+      error: null,
+      initialized: true
+    })
   }, [supabase])
 
-  const hasPermission = useCallback((permissionName: string): boolean => {
-    return state.user?.permissions?.includes(permissionName) || false
-  }, [state.user?.permissions])
-
-  const hasAnyPermission = useCallback((permissionNames: string[]): boolean => {
-    return permissionNames.some(permission => hasPermission(permission))
-  }, [hasPermission])
-
+  // ✅ Simplified permission helpers
   return {
     ...state,
     isAuthenticated: !!state.user,
     isAdmin: state.user?.role === 'admin',
     isLeader: state.user?.role === 'club_leader',
     isMember: state.user?.role === 'member',
-    hasPermission,
-    hasAnyPermission,
     signOut
   }
 }
