@@ -1,16 +1,14 @@
-// src/components/auth/LoginForm.tsx
 'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-
+import { createClient } from '@/utils/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Loader2 } from 'lucide-react'
-import { createClient } from '@/utils/supabase/client'
 
 export default function LoginForm() {
   const [loading, setLoading] = useState(false)
@@ -53,15 +51,33 @@ export default function LoginForm() {
     const email = formData.get('email') as string
     const password = formData.get('password') as string
     const name = formData.get('name') as string
+    const confirmPassword = formData.get('confirmPassword') as string
+
+    // Validation
+    if (!name?.trim()) {
+      setError('İsim gerekli')
+      setLoading(false)
+      return
+    }
+
+    if (password.length < 6) {
+      setError('Şifre en az 6 karakter olmalı')
+      setLoading(false)
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Şifreler eşleşmiyor')
+      setLoading(false)
+      return
+    }
 
     try {
       const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            name,
-          }
+          data: { name }
         }
       })
 
@@ -105,12 +121,11 @@ export default function LoginForm() {
               </Alert>
             )}
 
+            {/* LOGIN TAB */}
             <TabsContent value="login">
               <form action={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="login-email" className="text-sm font-medium">
-                    Email
-                  </label>
+                  <label htmlFor="login-email" className="text-sm font-medium">Email</label>
                   <Input
                     id="login-email"
                     name="email"
@@ -122,9 +137,7 @@ export default function LoginForm() {
                 </div>
                 
                 <div className="space-y-2">
-                  <label htmlFor="login-password" className="text-sm font-medium">
-                    Şifre
-                  </label>
+                  <label htmlFor="login-password" className="text-sm font-medium">Şifre</label>
                   <Input
                     id="login-password"
                     name="password"
@@ -135,11 +148,7 @@ export default function LoginForm() {
                   />
                 </div>
                 
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={loading}
-                >
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -151,61 +160,70 @@ export default function LoginForm() {
                 </Button>
               </form>
             </TabsContent>
+
+            {/* REGISTER TAB */}
             <TabsContent value="register">
-            <form action={handleSignUp} className="space-y-4">
+              <form action={handleSignUp} className="space-y-4">
                 <div className="space-y-2">
-                  <label htmlFor="register-name" className="text-sm font-medium">
-                    Ad Soyad
-                  </label>
+                  <label htmlFor="register-name" className="text-sm font-medium">Ad Soyad *</label>
                   <Input
                     id="register-name"
-                   name="name"
+                    name="name"
                     type="text"
-                    placeholder="John Doe"
+                    placeholder="Adınız Soyadınız"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="register-email" className="text-sm font-medium">Email *</label>
+                  <Input
+                    id="register-email"
+                    name="email"
+                    type="email"
+                    placeholder="email@example.com"
                     required
                     disabled={loading}
                   />
                 </div>
                 
                 <div className="space-y-2">
-                <label htmlFor="register-email" className="text-sm font-medium">
-                  Email
-                </label>
-                <Input
-                  id="register-email"
-                  name="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  required
-                  disabled={loading}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <label htmlFor="register-password" className="text-sm font-medium">
-                  Şifre
-                </label>
-                <Input
-                  id="register-password"
-                  name="password"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  disabled={loading}
-                />
-              </div>
-    {/* Add email and password fields similar to login */}
-    <Button type="submit" className="w-full" disabled={loading}>
-      {loading ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Kayıt yapılıyor...
-        </>
-      ) : (
-        'Kayıt Ol'
-      )}
-    </Button>
-  </form>
+                  <label htmlFor="register-password" className="text-sm font-medium">Şifre *</label>
+                  <Input
+                    id="register-password"
+                    name="password"
+                    type="password"
+                    placeholder="En az 6 karakter"
+                    required
+                    disabled={loading}
+                    minLength={6}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="register-confirm" className="text-sm font-medium">Şifre Tekrar *</label>
+                  <Input
+                    id="register-confirm"
+                    name="confirmPassword"
+                    type="password"
+                    placeholder="Şifrenizi tekrar girin"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Kayıt yapılıyor...
+                    </>
+                  ) : (
+                    'Hesap Oluştur'
+                  )}
+                </Button>
+              </form>
             </TabsContent>
           </Tabs>
         </CardContent>

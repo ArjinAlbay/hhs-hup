@@ -1,70 +1,79 @@
-// src/components/admin/PermissionGuard.tsx - YENİ COMPONENT OLUŞTUR
-'use client';
+'use client'
 
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth'
+import { AlertTriangle, Shield } from 'lucide-react'
 
 interface PermissionGuardProps {
-  children: React.ReactNode;
-  requiredRole?: 'admin' | 'club_leader' | 'member';
-  allowedRoles?: ('admin' | 'club_leader' | 'member')[];
+  children: React.ReactNode
+  requiredRole?: 'admin' | 'club_leader' | 'member'
+  allowedRoles?: ('admin' | 'club_leader' | 'member')[]
+  fallback?: React.ReactNode
 }
 
 export default function PermissionGuard({ 
   children, 
   requiredRole,
-  allowedRoles 
+  allowedRoles,
+  fallback 
 }: PermissionGuardProps) {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading } = useAuth()
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-96">
+      <div className="flex items-center justify-center p-8">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Yetki kontrol ediliyor...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Yetki kontrol ediliyor...</p>
         </div>
       </div>
-    );
+    )
   }
 
   if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
+    return fallback || (
+      <div className="flex items-center justify-center p-8">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Giriş Gerekli</h2>
-          <p className="text-gray-600">Bu sayfayı görüntülemek için giriş yapmanız gerekiyor.</p>
+          <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Giriş Gerekli</h3>
+          <p className="text-gray-600">Bu içeriği görüntülemek için giriş yapın.</p>
         </div>
       </div>
-    );
+    )
   }
 
-  // ✅ Flexible role checking
-  let hasAccess = false;
+  let hasAccess = false
 
   if (allowedRoles) {
-    // Multiple roles allowed
-    hasAccess = allowedRoles.includes(user.role);
+    hasAccess = allowedRoles.includes(user.role)
   } else if (requiredRole) {
-    // Single role + admin always has access
-    hasAccess = user.role === requiredRole || user.role === 'admin';
+    hasAccess = user.role === requiredRole || user.role === 'admin'
+  } else {
+    hasAccess = true
   }
 
   if (!hasAccess) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
+    return fallback || (
+      <div className="flex items-center justify-center p-8">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-red-600 mb-2">Yetkisiz Erişim</h2>
-          <p className="text-gray-600">Bu sayfaya erişim yetkiniz bulunmuyor.</p>
-          <p className="text-sm text-gray-500 mt-2">
-            Mevcut rol: {user.role === 'admin' ? 'Yönetici' : user.role === 'club_leader' ? 'Kulüp Lideri' : 'Üye'}
-          </p>
-          <p className="text-sm text-gray-500">
-            Gerekli rol: {requiredRole ? (requiredRole === 'admin' ? 'Yönetici' : 'Kulüp Lideri+') : allowedRoles?.join(', ')}
-          </p>
+          <AlertTriangle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Erişim Reddedildi</h3>
+          <p className="text-gray-600">Bu içeriğe erişim yetkiniz bulunmuyor.</p>
+          <div className="mt-3 text-sm text-gray-500">
+            <p>Mevcut rol: <span className="font-medium">{getRoleName(user.role)}</span></p>
+          </div>
         </div>
       </div>
-    );
+    )
   }
 
-  return <>{children}</>;
+  return <>{children}</>
+}
+
+function getRoleName(role: string): string {
+  switch (role) {
+    case 'admin': return 'Yönetici'
+    case 'club_leader': return 'Kulüp Lideri'  
+    case 'member': return 'Üye'
+    default: return role
+  }
 }
