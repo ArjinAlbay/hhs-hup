@@ -1,42 +1,38 @@
-// middleware.ts - Updated with better error handling
 import { updateSession } from '@/utils/supabase/middleware'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+
+  const pathname = request.nextUrl.pathname
+  if (
+    pathname.startsWith('/_next/') ||
+    pathname.startsWith('/api/') ||
+    pathname.includes('.') 
+  ) {
+    return NextResponse.next()
+  }
+
   try {
     return await updateSession(request)
   } catch (error) {
-    console.error('💥 Middleware fatal error:', error)
+    console.error('💥 Middleware error:', error)
     
-    // ✅ FIX: Graceful error handling - don't redirect on every error
-    const currentPath = request.nextUrl.pathname
-    const isPublicRoute = currentPath.startsWith('/login') || 
-                         currentPath.startsWith('/auth') || 
-                         currentPath.startsWith('/register')
+    const isPublicRoute = pathname.startsWith('/login') || 
+                         pathname.startsWith('/auth') || 
+                         pathname.startsWith('/register')
     
-    if (!isPublicRoute) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/login'
-      url.searchParams.set('message', 'system_error')
-      return NextResponse.redirect(url)
+    if (isPublicRoute) {
+      return NextResponse.next()
     }
     
-    // For public routes, let them through even on error
-    return NextResponse.next()
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 }
 
 export const config = {
   matcher: [
-    '/login',
-    '/clubs/:path*',
-    '/files/:path*',
-    '/dashboard/:path*',
-    '/tasks/:path*',
-    '/meetings/:path*',
-    '/notifications/:path*',
-    '/admin/:path*',
-    '/permissions/:path*',
-    '/settings/:path*'
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ]
 }
