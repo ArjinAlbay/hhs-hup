@@ -1,28 +1,24 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { DatabaseService } from '@/lib/database';
+import { NextRequest } from 'next/server'
+import { DatabaseService } from '@/lib/database'
+import { withAuth, ApiResponse, parsePagination } from '@/lib/api-middleware'
 
-export async function GET(request: NextRequest) {
+export const GET = withAuth(async (request: NextRequest, user) => {
   try {
-    // TODO: Admin kontrolü ekle
+    const { page, limit } = parsePagination(request)
     
-    const { data, error } = await DatabaseService.getUsers();
+    const result = await DatabaseService.getUsers({
+      page,
+      limit,
+      sortBy: 'name',
+      sortOrder: 'asc'
+    })
     
-    if (error) {
-      return NextResponse.json(
-        { success: false, error: 'Kullanıcılar yüklenemedi' },
-        { status: 500 }
-      );
+    if (result.error) {
+      return ApiResponse.error('Kullanıcılar yüklenemedi')
     }
 
-    return NextResponse.json({
-      success: true,
-      data: data || []
-    });
+    return ApiResponse.success(result.data, undefined, result.pagination)
   } catch (error) {
-    console.error('Users API error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Kullanıcılar yüklenemedi' },
-      { status: 500 }
-    );
+    return ApiResponse.error('Kullanıcılar yüklenemedi')
   }
-}
+}, { requiredRole: 'admin' })
