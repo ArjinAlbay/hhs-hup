@@ -1,64 +1,112 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { DatabaseService } from '@/lib/database';
+// src/app/api/tasks/route.ts - Enhanced Tasks API
+import { NextRequest } from 'next/server';
+import { EnhancedDatabaseService } from '@/lib/database-enhanced';
+import { withAuth, ApiResponse, parsePagination, authorizeUser } from '@/lib/api-middleware';
+import { validateTaskData } from '@/lib/validation';
 
-export async function GET(request: NextRequest) {
+// 🔒 GET /api/tasks - Get paginated tasks with proper authorization
+export const GET = withAuth(async (request: NextRequest, user) => {
   try {
+    const { page, limit } = parsePagination(request);
     const { searchParams } = new URL(request.url);
+    
     const clubId = searchParams.get('clubId');
-    const userId = searchParams.get('userId');
+    const assignedTo = searchParams.get('assignedTo');
     const status = searchParams.get('status');
 
-    const { data, error } = await DatabaseService.getTasks({
+    const options = {
+      page,
+      limit,
       clubId: clubId || undefined,
-      userId: userId || undefined,
+      assignedTo: assignedTo || undefined,
       status: status || undefined,
-    });
-    
-    if (error) {
-      console.error('Tasks fetch error:', error);
-      return NextResponse.json(
-        { success: false, error: 'Görevler yüklenemedi' },
-        { status: 500 }
-      );
+      sortBy: searchParams.get('sortBy') || 'due_date',
+      sortOrder: (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc',
+    };
+
+    // If specific club requested, check authorization
+    if (clubId) {
+      const { authorized, error: authError } = authorizeUser(user, undefined, undefined, clubId);
+      if (!authorized) {
+        return ApiResponse.forbidden(authError);
+      }
     }
 
-    return NextResponse.json({
-      success: true,
-      data: data || []
-    });
+    const { data, error } = await EnhancedDatabaseService.getTasks(options, user.id);
+
+    if (error) {
+      console.error('Tasks fetch error:', error);
+      return ApiResponse.error('Görevler yüklenemedi');
+    }
+
+    return ApiResponse.success(data?.data || [], undefined, data?.pagination);
   } catch (error) {
     console.error('Tasks API error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Görevler yüklenemedi' },
-      { status: 500 }
-    );
+    return ApiResponse.error('Görevler yüklenemedi');
   }
-}
+});
 
-export async function POST(request: NextRequest) {
+// 🔒 POST /api/tasks - Create new task (admin or club leader only)
+export const POST = withAuth(async (request: NextRequest, user) => {
   try {
     const body = await request.json();
     
-    const { data, error } = await DatabaseService.createTask(body);
-
-    if (error) {
-      console.error('Task creation error:', error);
-      return NextResponse.json(
-        { success: false, error: 'Görev oluşturulamadı' },
-        { status: 500 }
+    // Validate input
+    const validation = validateTaskData(body);
+    if (!validation.isValid) {
+      return ApiResponse.badRequest(
+        `Validation error: ${Object.values(validation.errors).join(', ')}`
       );
     }
 
-    return NextResponse.json({
-      success: true,
-      data,
-      message: 'Görev oluşturuldu'
-    });
+    const { title, description, club_id, assigned_to, due_date, priority = 'medium' } = body;
+
+    // Check authorization for the club
+    const { authorized, error: authError } = authorizeUser(
+      user, 
+      undefined, 
+      ['admin', 'club_leader'], 
+      club_id
+    );
+    if (!authorized) {
+      return ApiResponse.forbidden(authError);
+    }
+
+    // Validate due date
+    if (due_date) {
+      const dueDate = new Date(due_date);
+      if (isNaN(dueDate.getTime())) {
+        return ApiResponse.badRequest('Geçersiz bitiş tarihi formatı');
+      }
+      if (dueDate < new Date()) {
+        return ApiResponse.badRequest('Bitiş tarihi gelecekte olmalıdır');
+      }
+    }
+
+    // Prepare task data
+    const taskData = {
+      title,
+      description,
+      club_id,
+      assigned_by: user.id,
+      assigned_to,
+      due_date,
+      priority,
+      status: 'pending' as const,
+      files: [],
+      created_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await EnhancedDatabaseService.createTask(taskData);
+
+    if (error) {
+      console.error('Task creation error:', error);
+      return ApiResponse.error('Görev oluşturulamadı');
+    }
+
+    return ApiResponse.success(data, 'Görev başarıyla oluşturuldu');
   } catch (error) {
     console.error('Task creation API error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Görev oluşturulamadı' },
-      { status: 500 }
-    );
+    return ApiResponse.error('Görev oluşturulamadı');
   }
-}
+}, { allowedRoles: ['admin', 'club_leader'] });
