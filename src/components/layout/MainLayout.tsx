@@ -1,25 +1,18 @@
-// src/components/layout/MainLayout.tsx - FIXED: Using Simple Stores!
-'use client';
+'use client'
 
-import { useAuth } from '@/hooks/useAuth';
-
-import {  memo } from 'react';
-import Sidebar from './Sidebar';
-import Header from './Header';
+import { useAuth } from '@/hooks/useAuth'
+import Sidebar from './Sidebar'
+import Header from './Header'
 
 interface MainLayoutProps {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
-// 🚀 Memoized layout components
-const MemoizedSidebar = memo(Sidebar);
-const MemoizedHeader = memo(Header);
-
 export function MainLayout({ children }: MainLayoutProps) {
-  const { user, isAuthenticated, initialized } = useAuth();
+  const { user, isLoading } = useAuth()
 
-  // Don't render layout if not authenticated or not initialized
-  if (!initialized) {
+  // Loading state
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -27,10 +20,11 @@ export function MainLayout({ children }: MainLayoutProps) {
           <p className="text-gray-600">Sistem başlatılıyor...</p>
         </div>
       </div>
-    );
+    )
   }
 
-  if (!isAuthenticated) {
+  // Not authenticated
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -38,14 +32,15 @@ export function MainLayout({ children }: MainLayoutProps) {
           <p className="text-gray-600">Giriş sayfasına yönlendiriliyor...</p>
         </div>
       </div>
-    );
+    )
   }
 
+  // Authenticated layout
   return (
     <div className="flex h-screen bg-gray-50">
-      <MemoizedSidebar />
+      <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <MemoizedHeader />
+        <Header />
         <main className="flex-1 overflow-auto">
           <div className="h-full px-6 py-6">
             {children}
@@ -53,7 +48,7 @@ export function MainLayout({ children }: MainLayoutProps) {
         </main>
       </div>
     </div>
-  );
+  )
 }
 
-export default MainLayout;
+export default MainLayout
