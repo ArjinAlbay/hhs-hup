@@ -6,13 +6,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Search, Plus, Trash2, Shield, Users } from 'lucide-react';
-import { getUserPermissions, grantPermission, revokePermission, UserPermission } from '@/lib/permissions';
+import { Search, Plus, Shield, Users } from 'lucide-react';
+import { usePermissionAdmin } from '@/hooks/usePermissionAdmin';
 import PermissionTransfer from './PermissionTransfer';
-import { AVAILABLE_PERMISSIONS } from '@/lib/permissions';
-
 
 interface User {
   id: string;
@@ -26,10 +23,25 @@ interface Permission {
   name: string;
   description: string;
   category: string;
+  is_active: boolean;
+}
+
+interface UserPermission {
+  id: string;
+  user_id: string;
+  permission_id: string;
+  granted_by: string;
+  granted_at: string;
+  expires_at?: string;
+  is_active: boolean;
+  context?: any;
+  permission: Permission;
 }
 
 export default function PermissionManager() {
   const { user: currentUser } = useAuth();
+  const { grantPermission, revokePermission, loading: adminLoading } = usePermissionAdmin();
+  
   const [users, setUsers] = useState<User[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -38,14 +50,10 @@ export default function PermissionManager() {
   const [isLoading, setIsLoading] = useState(false);
   const [showAddPermission, setShowAddPermission] = useState(false);
 
-  // Kullanıcıları yükle
+  // Load initial data
   useEffect(() => {
     fetchUsers();
-    // Use AVAILABLE_PERMISSIONS from the library instead of fetching
-    setPermissions(AVAILABLE_PERMISSIONS.map((perm, index) => ({
-      id: index.toString(),
-      ...perm
-    })));
+    fetchPermissions();
   }, []);
 
   const fetchUsers = async () => {
@@ -60,11 +68,26 @@ export default function PermissionManager() {
     }
   };
 
+  const fetchPermissions = async () => {
+    try {
+      const response = await fetch('/api/permissions');
+      const result = await response.json();
+      if (result.success) {
+        setPermissions(result.data.permissions);
+      }
+    } catch (error) {
+      console.error('Permissions fetch error:', error);
+    }
+  };
+
   const fetchUserPermissions = async (userId: string) => {
     setIsLoading(true);
     try {
-      const permissions = await getUserPermissions(userId);
-      setUserPermissions(permissions);
+      const response = await fetch(`/api/users/${userId}/permissions`);
+      const result = await response.json();
+      if (result.success) {
+        setUserPermissions(result.data);
+      }
     } catch (error) {
       console.error('User permissions fetch error:', error);
     }
@@ -130,6 +153,7 @@ export default function PermissionManager() {
       'user_management': '👥 Kullanıcı Yönetimi',
       'club_management': '🏢 Kulüp Yönetimi',
       'task_management': '📝 Görev Yönetimi',
+      'meeting_management': '📅 Toplantı Yönetimi',
       'file_management': '📁 Dosya Yönetimi',
       'system': '⚙️ Sistem'
     };
@@ -146,7 +170,7 @@ export default function PermissionManager() {
   };
 
   const userHasPermission = (permissionName: string) => {
-    return userPermissions.some(up => up.name === permissionName);
+    return userPermissions.some(up => up.permission.name === permissionName);
   };
 
   const availablePermissions = permissions.filter(p => 
@@ -210,12 +234,12 @@ export default function PermissionManager() {
             {selectedUser && (
               <Dialog open={showAddPermission} onOpenChange={setShowAddPermission}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
+                  <Button size="sm" disabled={adminLoading}>
                     <Plus className="mr-2 h-4 w-4" />
                     Yetki Ekle
                   </Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Yetki Ekle - {selectedUser.name}</DialogTitle>
                   </DialogHeader>
@@ -233,13 +257,14 @@ export default function PermissionManager() {
                                 key={permission.id}
                                 className="flex items-center justify-between p-2 border rounded"
                               >
-                                <div>
+                                <div className="flex-1">
                                   <p className="font-medium text-sm">{permission.name}</p>
                                   <p className="text-xs text-gray-500">{permission.description}</p>
                                 </div>
                                 <Button
                                   size="sm"
                                   onClick={() => handleGrantPermission(permission.name)}
+                                  disabled={adminLoading}
                                 >
                                   Ekle
                                 </Button>
@@ -250,7 +275,7 @@ export default function PermissionManager() {
                       );
                     })}
                     {availablePermissions.length === 0 && (
-                      <p className="text-center text-gray-500">Eklenebilecek yetki yok</p>
+                      <p className="text-center text-gray-500 py-8">Eklenebilecek yetki yok</p>
                     )}
                   </div>
                 </DialogContent>
@@ -258,28 +283,71 @@ export default function PermissionManager() {
             )}
           </div>
         </CardHeader>
-       
+        
+        <CardContent>
+          {!selectedUser ? (
+            <div className="text-center py-12">
+              <Shield className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <p className="text-gray-500">Yetkilerini görmek için bir kullanıcı seçin</p>
+            </div>
+          ) : isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-500">Yetkiler yükleniyor...</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Current Permissions List */}
+              <div>
+                <h4 className="font-medium mb-3">Mevcut Yetkiler ({userPermissions.length})</h4>
+                {userPermissions.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">Bu kullanıcının özel yetkisi yok</p>
+                ) : (
+                  <div className="space-y-2">
+                    {userPermissions.map((perm) => (
+                      <div
+                        key={perm.id}
+                        className="flex items-center justify-between p-3 border rounded-lg bg-gray-50"
+                      >
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{perm.permission.name}</p>
+                          <p className="text-xs text-gray-500">{perm.permission.description}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <Badge variant="outline" className="text-xs">
+                              {perm.permission.category}
+                            </Badge>
+                            {perm.expires_at && (
+                              <Badge variant="secondary" className="text-xs">
+                                Geçici: {new Date(perm.expires_at).toLocaleDateString('tr-TR')}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRevokePermission(perm.permission.name)}
+                          disabled={adminLoading}
+                        >
+                          Kaldır
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-<CardContent>
-  {!selectedUser ? (
-    <div className="text-center py-12">
-      <Shield className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-      <p className="text-gray-500">Yetkilerini görmek için bir kullanıcı seçin</p>
-    </div>
-  ) : isLoading ? (
-    <div className="text-center py-12">
-      <p className="text-gray-500">Yetkiler yükleniyor...</p>
-    </div>
-  ) : (
-    <PermissionTransfer 
-      user={selectedUser}
-      userPermissions={userPermissions}
-      allPermissions={permissions}
-      onGrantPermission={handleGrantPermission}
-      onRevokePermission={handleRevokePermission}
-    />
-  )}
-</CardContent>
+              {/* Role-based permissions info */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h5 className="font-medium text-blue-900 mb-2">Rol Bazlı Yetkiler</h5>
+                <p className="text-sm text-blue-700">
+                  Bu kullanıcı <Badge className={getRoleColor(selectedUser.role)}>{selectedUser.role}</Badge> rolünden 
+                  dolayı otomatik yetkilerle de sahiptir. Yukarıdaki liste sadece ek verilen özel yetkilerdir.
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );

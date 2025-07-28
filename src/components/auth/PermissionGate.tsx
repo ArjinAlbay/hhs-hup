@@ -1,18 +1,15 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { usePermissions } from '@/hooks/usePermissions';
-import { Permission } from '@/types/auth';
 
 interface PermissionGateProps {
   children: ReactNode;
-  permission?: Permission;
-  permissions?: Permission[];
-  requireAll?: boolean; // true ise tüm izinler gerekli, false ise herhangi biri yeterli
-  context?: {
-    clubId?: string;
-    resourceOwnerId?: string;
-  };
+  permission?: string;
+  permissions?: string[];
+  requireAll?: boolean;
+  context?: any;
   fallback?: ReactNode;
-  roles?: ('admin' | 'club_leader' | 'member')[]; // Direkt rol kontrolü için
+  roles?: ('admin' | 'club_leader' | 'member')[];
+  loading?: ReactNode;
 }
 
 export function PermissionGate({
@@ -22,46 +19,56 @@ export function PermissionGate({
   requireAll = false,
   context,
   fallback = null,
-  roles
+  roles,
+  loading: loadingComponent = <div>Loading...</div>
 }: PermissionGateProps) {
-  const { hasPermission, hasAnyPermission, hasAllPermissions, user } = usePermissions();
+  const { hasPermission, hasAnyPermission, hasAllPermissions, user, loading } = usePermissions();
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
-  // Rol bazlı kontrol
-  if (roles && user) {
-    if (!roles.includes(user.role)) {
-      return <>{fallback}</>;
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (!user) {
+        setHasAccess(false);
+        return;
+      }
+
+      // Role-based check
+      if (roles && !roles.includes(user.role)) {
+        setHasAccess(false);
+        return;
+      }
+
+      // Permission-based check
+      if (permission) {
+        const result = await hasPermission(permission, context);
+        setHasAccess(result);
+        return;
+      }
+
+      if (permissions) {
+        const result = requireAll
+          ? await hasAllPermissions(permissions, context)
+          : await hasAnyPermission(permissions, context);
+        setHasAccess(result);
+        return;
+      }
+
+      // If no specific checks, allow access
+      setHasAccess(true);
+    };
+
+    if (!loading) {
+      checkAccess();
     }
+  }, [user, roles, permission, permissions, requireAll, context, loading, hasPermission, hasAnyPermission, hasAllPermissions]);
+
+  if (loading || hasAccess === null) {
+    return <>{loadingComponent}</>;
   }
 
-  // İzin bazlı kontrol
-  if (permission) {
-    if (!hasPermission(permission, context)) {
-      return <>{fallback}</>;
-    }
-  }
-
-  if (permissions) {
-    const hasRequiredPermissions = requireAll
-      ? hasAllPermissions(permissions, context)
-      : hasAnyPermission(permissions, context);
-
-    if (!hasRequiredPermissions) {
-      return <>{fallback}</>;
-    }
+  if (!hasAccess) {
+    return <>{fallback}</>;
   }
 
   return <>{children}</>;
 }
-
-// Kullanım örnekleri:
-// <PermissionGate permission="club:create">
-//   <CreateClubButton />
-// </PermissionGate>
-
-// <PermissionGate permissions={["club:edit", "club:delete"]} context={{ clubId: "123" }}>
-//   <ClubManagementPanel />
-// </PermissionGate>
-
-// <PermissionGate roles={["admin"]}>
-//   <AdminPanel />
-// </PermissionGate>
