@@ -1,14 +1,13 @@
-// src/lib/auth.ts
 import { createClient } from '@/utils/supabase/server'
 import { createClient as createBrowserClient } from '@/utils/supabase/client'
 
 export interface AuthUser {
-  id: string;
-  email: string;
-  name: string;
-  role: 'admin' | 'club_leader' | 'member';
-  clubId?: string;
-  isActive: boolean;
+  id: string
+  email: string
+  name: string
+  role: 'admin' | 'club_leader' | 'member'
+  clubId?: string
+  isActive: boolean
 }
 
 export class AuthService {
@@ -16,44 +15,33 @@ export class AuthService {
     const supabase = await createClient()
     
     const { data: { user }, error } = await supabase.auth.getUser()
-    
-    if (error || !user) {
-      return null
-    }
+    if (error || !user) return null
 
-    // Get user details from custom users table
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, email, name, role, is_active, created_at, updated_at')
+      .select('id, email, name, role, is_active')
       .eq('id', user.id)
       .eq('is_active', true)
       .single()
 
-    if (userError || !userData) {
-      return null
-    }
+    if (userError || !userData) return null
 
-    // For club leaders, fetch their club information
-    let clubId: string | undefined = undefined;
+    let clubId: string | undefined
     
     if (userData.role === 'club_leader') {
-      // Club leaders should have a club where they are the leader
       const { data: leaderClub } = await supabase
         .from('clubs')
         .select('id')
         .eq('leader_id', user.id)
         .single()
-      
-      clubId = leaderClub?.id;
+      clubId = leaderClub?.id
     } else if (userData.role === 'member') {
-      // Members get their club from club_members table
       const { data: memberShip } = await supabase
         .from('club_members')
         .select('club_id')
         .eq('user_id', user.id)
         .single()
-      
-      clubId = memberShip?.club_id;
+      clubId = memberShip?.club_id
     }
 
     return {
@@ -88,9 +76,7 @@ export class AuthService {
       email,
       password,
       options: {
-        data: {
-          name,
-        }
+        data: { name }
       }
     })
 
@@ -104,5 +90,15 @@ export class AuthService {
   static async signOut() {
     const supabase = createBrowserClient()
     await supabase.auth.signOut()
+  }
+
+  static canAccess(userRole: 'admin' | 'club_leader' | 'member', allowedRoles: string[]): boolean {
+    return allowedRoles.includes(userRole)
+  }
+
+  static canManageClub(userRole: string, userId: string, clubLeaderId?: string): boolean {
+    if (userRole === 'admin') return true
+    if (userRole === 'club_leader' && userId === clubLeaderId) return true
+    return false
   }
 }
