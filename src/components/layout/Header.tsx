@@ -1,110 +1,99 @@
 'use client'
 
-import { useAuth } from '@/hooks/useAuth'
+import { memo, useCallback } from 'react'
+import { useAuth } from '@/store/auth-store'
 import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import {
+import { 
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Badge } from '@/components/ui/badge'
-import { Bell, LogOut, RefreshCw } from 'lucide-react'
+import { 
+  Settings, 
+  LogOut, 
+  User,
+  ChevronDown
+} from 'lucide-react'
+// Import the notification dropdown
+import { NotificationDropdown } from '@/components/notification/OptimizedNotificationCenter'
 
-export default function Header() {
+
+// User menu
+const UserMenu = memo(() => {
   const { user, signOut } = useAuth()
 
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Yönetici'
-      case 'club_leader': return 'Kulüp Lideri'
-      case 'member': return 'Üye'
-      default: return role
+  const handleSignOut = useCallback(async () => {
+    try {
+      await signOut()
+      // Redirect will happen automatically via auth listener
+    } catch (error) {
+      console.error('Sign out error:', error)
     }
-  }
+  }, [signOut])
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'admin': return 'bg-red-500'
-      case 'club_leader': return 'bg-blue-500'
-      case 'member': return 'bg-green-500'
-      default: return 'bg-gray-500'
-    }
-  }
-
-  const handleRefresh = () => {
-    window.location.reload()
-  }
-
-  const handleLogout = async () => {
-    await signOut()
-    window.location.href = '/login'
-  }
+  if (!user) return null
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-gray-900">Community Platform</h1>
-          {user && (
-            <Badge className={`${getRoleBadgeColor(user.role)} text-white`}>
-              {getRoleDisplayName(user.role)}
-            </Badge>
-          )}
-        </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" className="flex items-center space-x-2">
+          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+            <span className="text-white text-sm font-medium">
+              {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+            </span>
+          </div>
+          <span className="text-sm font-medium text-gray-700 hidden md:block">
+            {user.name}
+          </span>
+          <ChevronDown className="h-4 w-4 text-gray-500" />
+        </Button>
+      </DropdownMenuTrigger>
+      
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuLabel>Hesabım</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        
+        <DropdownMenuItem>
+          <User className="mr-2 h-4 w-4" />
+          <span>Profil</span>
+        </DropdownMenuItem>
+        
+        <DropdownMenuItem>
+          <Settings className="mr-2 h-4 w-4" />
+          <span>Ayarlar</span>
+        </DropdownMenuItem>
+        
+        <DropdownMenuSeparator />
+        
+        <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Çıkış Yap</span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+})
+UserMenu.displayName = 'UserMenu'
 
-        <div className="flex items-center space-x-4">
-          {/* Refresh Button */}
-          <Button
-            onClick={handleRefresh}
-            variant="ghost"
-            size="sm"
-            className="flex items-center space-x-2 text-gray-600 hover:text-gray-700"
-            title="Sayfayı yenile"
-          >
-            <RefreshCw className="h-4 w-4" />
-            <span className="hidden md:inline text-xs">Yenile</span>
-          </Button>
+const OptimizedHeader = memo(() => {
+  return (
+    <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6">
+      {/* Left side - Title */}
+      <div className="flex items-center">
+        <h1 className="text-xl font-semibold text-gray-900">Community Platform</h1>
+      </div>
 
-          {/* Notifications */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="relative"
-            title="Bildirimler"
-          >
-            <Bell className="h-5 w-5" />
-            {/* Simple notification badge */}
-            <Badge 
-              variant="destructive" 
-              className="absolute -top-2 -right-2 h-5 w-5 rounded-full p-0 text-xs"
-            >
-              0
-            </Badge>
-          </Button>
-
-          {/* User Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center space-x-2">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    {user?.name.split(' ').map(n => n[0]).join('').toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="hidden md:inline">{user?.name}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Çıkış Yap
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+      {/* Right side - Actions */}
+      <div className="flex items-center space-x-4">
+        <NotificationDropdown />
+        <UserMenu />
       </div>
     </header>
   )
-}
+})
+OptimizedHeader.displayName = 'OptimizedHeader'
+
+export default OptimizedHeader

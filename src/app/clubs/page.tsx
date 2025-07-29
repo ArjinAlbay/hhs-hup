@@ -1,17 +1,11 @@
 
-import ClubList from '@/components/club/ClubList';
-import AuthLayout from '@/components/layout/AuthLayout';
-import { createClient } from '@/utils/supabase/server';
+import { MainLayoutContent } from '@/components/layout/MainLayout'
+import ClubListOptimized from '@/components/club/ClubListOptimized'
 
-export default async function ClubsPage() {
-  // 🔒 Server-side authentication check
-  const supabase = await createClient();
-
-
-
+export default function ClubsPage() {
   return (
-    <AuthLayout>
-      <ClubList />
-    </AuthLayout>
-  );
+    <MainLayoutContent>
+      <ClubListOptimized />
+    </MainLayoutContent>
+  )
 }

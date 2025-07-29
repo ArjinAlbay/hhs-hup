@@ -6,7 +6,7 @@ import { useMeetingsApi } from '@/hooks/useSimpleApi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, Users, Video, MapPin, Check, X } from 'lucide-react';
+import { Calendar, Clock, Users, MapPin, Check, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 
@@ -18,15 +18,14 @@ interface MeetingListProps {
 
 export default function MeetingList({ clubId, showActions = true, filter = 'all' }: MeetingListProps) {
   const { user } = useAuth();
-  const { meetings, isLoading, fetchMeetings, updateMeeting } = useMeetingsApi();
+  const { data: meetings = [], loading: isLoading, get } = useMeetingsApi();
 
   useEffect(() => {
     if (user) {
-      const options: any = {};
-      if (clubId) options.clubId = clubId;
-      fetchMeetings(options);
+      const path = clubId ? `?clubId=${clubId}` : '';
+      get(path);
     }
-  }, [clubId, user?.id]); // 🔧 FIXED: Use user.id instead of user object, removed fetchMeetings
+  }, [clubId, user?.id, get]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -48,9 +47,9 @@ export default function MeetingList({ clubId, showActions = true, filter = 'all'
     }
   };
 
-  const filteredMeetings = meetings.filter(meeting => {
+  const filteredMeetings = (meetings || []).filter(meeting => {
     const now = new Date();
-    const meetingStart = new Date(meeting.start_time); // 🔧 Fixed: use start_time instead of startTime
+    const meetingStart = new Date(meeting.start_time);
     
     switch (filter) {
       case 'upcoming':
@@ -58,22 +57,31 @@ export default function MeetingList({ clubId, showActions = true, filter = 'all'
       case 'past':
         return meetingStart < now || meeting.status === 'completed';
       case 'organized':
-        return meeting.organizer_id === user?.id; // 🔧 Fixed: use organizer_id instead of organizerId
+        return meeting.organizer_id === user?.id;
       default:
         return true;
     }
   });
 
-  const getUserResponse = (meeting: any, userId: string) => {
-    const participant = meeting.meeting_participants?.find(
-      (p: any) => p.user_id === userId
-    );
-    return participant?.response || 'pending';
+  const getUserResponse = () => {
+    // For now, return 'pending' until we implement participants table
+    return 'pending';
   };
 
   const handleResponse = async (meetingId: string, response: 'accepted' | 'declined') => {
     if (!user) return;
-    await updateMeeting(meetingId, { response });
+    try {
+      await fetch(`/api/meetings/${meetingId}/response`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response })
+      });
+      // Refresh the meetings list
+      const path = clubId ? `?clubId=${clubId}` : '';
+      get(path);
+    } catch (error) {
+      console.error('Failed to update response:', error);
+    }
   };
 
   if (isLoading) {
@@ -95,7 +103,7 @@ export default function MeetingList({ clubId, showActions = true, filter = 'all'
     );
   }
 
-  if (meetings.length === 0) {
+  if (!meetings || meetings.length === 0) {
     return (
       <div className="text-center py-12">
         <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -111,9 +119,9 @@ export default function MeetingList({ clubId, showActions = true, filter = 'all'
 
   return (
     <div className="space-y-4">
-      {meetings.map((meeting) => {
-        const userResponse = user ? getUserResponse(meeting, user.id) : 'pending';
-        const isOrganizer = meeting.organizer_id === user?.id; // 🔧 Fixed: use organizer_id
+      {filteredMeetings.map((meeting) => {
+        const userResponse = user ? getUserResponse() : 'pending';
+        const isOrganizer = meeting.organizer_id === user?.id;
         
         return (
           <Card key={meeting.id} className="hover:shadow-md transition-shadow">
@@ -144,14 +152,8 @@ export default function MeetingList({ clubId, showActions = true, filter = 'all'
                   </div>
                   <div className="flex items-center text-gray-600">
                     <Users className="mr-2 h-4 w-4" />
-                    {meeting.participants?.length || 0} katılımcı
+                    Katılımcılar
                   </div>
-                  {meeting.meetingLink && (
-                    <div className="flex items-center text-gray-600">
-                      <Video className="mr-2 h-4 w-4" />
-                      Online toplantı
-                    </div>
-                  )}
                   {meeting.location && (
                     <div className="flex items-center text-gray-600">
                       <MapPin className="mr-2 h-4 w-4" />

@@ -15,15 +15,14 @@ interface MeetingCalendarProps {
 
 export default function MeetingCalendar({ clubId }: MeetingCalendarProps) {
   const { user } = useAuth();
-  const { meetings, isLoading, fetchMeetings } = useMeetingsApi();
+  const { data: meetings = [], loading: isLoading, get } = useMeetingsApi();
 
   useEffect(() => {
     if (user) {
-      const options: any = {};
-      if (clubId) options.clubId = clubId;
-      fetchMeetings(options);
+      const path = clubId ? `?clubId=${clubId}` : '';
+      get(path);
     }
-  }, [clubId, user?.id]);
+  }, [clubId, user?.id, get]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -46,8 +45,8 @@ export default function MeetingCalendar({ clubId }: MeetingCalendarProps) {
   };
 
   // Group meetings by date
-  const groupedMeetings = meetings.reduce((groups: any, meeting) => {
-    const date = format(new Date(meeting.start_time), 'yyyy-MM-dd'); // 🔧 Fixed: use start_time
+  const groupedMeetings = (meetings || []).reduce((groups: Record<string, typeof meetings>, meeting) => {
+    const date = format(new Date(meeting.start_time), 'yyyy-MM-dd');
     if (!groups[date]) {
       groups[date] = [];
     }
@@ -75,7 +74,7 @@ export default function MeetingCalendar({ clubId }: MeetingCalendarProps) {
     );
   }
 
-  if (meetings.length === 0) {
+  if (!meetings || meetings.length === 0) {
     return (
       <div className="text-center py-12">
         <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -101,11 +100,11 @@ export default function MeetingCalendar({ clubId }: MeetingCalendarProps) {
           </CardHeader>
           <CardContent className="p-0">
             <div className="space-y-0">
-              {groupedMeetings[date].map((meeting: any, index: number) => (
+              {(groupedMeetings[date] || []).map((meeting: any, index: number) => (
                 <div 
                   key={meeting.id} 
                   className={`p-4 border-l-4 border-blue-200 ${
-                    index < groupedMeetings[date].length - 1 ? 'border-b border-gray-100' : ''
+                    index < (groupedMeetings[date] || []).length - 1 ? 'border-b border-gray-100' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between mb-2">

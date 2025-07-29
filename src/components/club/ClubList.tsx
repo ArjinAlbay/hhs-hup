@@ -30,7 +30,7 @@ export default function ClubList() {
       setIsLoading(true)
       setError(null)
       
-      const result = await DatabaseService.getClubs(user?.id, {
+      const result = await DatabaseService.getClubs({
         page: 1,
         limit: 50,
         sortBy: 'created_at',
@@ -89,22 +89,6 @@ export default function ClubList() {
             <h1 className="text-3xl font-bold text-gray-900">Kulüpler</h1>
             <p className="text-gray-600">Kulüpler yükleniyor...</p>
           </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader>
-                <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded"></div>
-                  <div className="h-4 bg-gray-200 rounded w-2/3"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
         </div>
       </div>
     )
@@ -182,36 +166,28 @@ export default function ClubList() {
               <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-xl">{club.name}</CardTitle>
+                    <div className="flex items-center space-x-2">
+                      <CardTitle className="text-xl">{club.name}</CardTitle>
+                      <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-semibold" title="Kulüp Lideri">Lider: {club.leaderName}</span>
+                    </div>
                     <Badge className={getClubTypeColor(club.type)}>
                       {getClubTypeName(club.type)}
                     </Badge>
                   </div>
-                  <p className="text-gray-600 text-sm line-clamp-2">
+                  <p className="text-gray-600 text-sm line-clamp-2 mt-2">
                     {club.description}
                   </p>
                 </CardHeader>
-                <CardContent>
+                {/* <CardContent>
                   <div className="flex items-center justify-between text-sm text-gray-500">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-1">
                         <Users className="h-4 w-4" />
                         <span>{club.memberCount} üye</span>
                       </div>
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>3 toplantı</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <CheckSquare className="h-4 w-4" />
-                        <span>5 görev</span>
-                      </div>
                     </div>
                   </div>
-                  <div className="mt-3 text-xs text-gray-400">
-                    Lider: {club.leaderName}
-                  </div>
-                </CardContent>
+                </CardContent> */}
               </Card>
             </Link>
           ))}

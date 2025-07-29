@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
-import { DatabaseService } from '@/lib/database'
+import { useTasksApi } from '@/hooks/useSimpleApi'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -28,48 +28,19 @@ interface TaskListProps {
 
 export default function TaskList({ clubId, userId }: TaskListProps) {
   const { user } = useAuth()
-  const [tasks, setTasks] = useState<Task[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchTasks = useCallback(async () => {
-    try {
-      setIsLoading(true)
-      setError(null)
-
-      const filters = {
-        clubId,
-        userId: userId || user?.id
-      }
-
-      const result = await DatabaseService.getTasks(filters, {
-        page: 1,
-        limit: 50,
-        sortBy: 'due_date',
-        sortOrder: 'asc'
-      })
-
-      if (result.error) {
-        setError('Görevler yüklenemedi')
-      } else {
-        setTasks(result.data)
-      }
-    } catch (err) {
-      setError('Bağlantı hatası')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [clubId, userId, user?.id])
+  const { data: tasks = [], loading: isLoading, error: apiError, get: fetchTasks } = useTasksApi()
 
   useEffect(() => {
     if (user) {
-      fetchTasks()
+      const path = clubId ? `?clubId=${clubId}` : ''
+      fetchTasks(path)
     }
-  }, [user, fetchTasks])
+  }, [user, clubId])
 
-  const handleRefresh = useCallback(() => {
-    fetchTasks()
-  }, [fetchTasks])
+  const handleRefresh = () => {
+    const path = clubId ? `?clubId=${clubId}` : ''
+    fetchTasks(path)
+  }
 
   const getStatusColor = useCallback((status: string) => {
     switch (status) {
@@ -112,21 +83,22 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
   }, [])
 
   const taskSummary = useMemo(() => {
-    const pending = tasks.filter(t => t.status === 'pending').length
-    const inProgress = tasks.filter(t => t.status === 'in_progress').length
-    const completed = tasks.filter(t => t.status === 'completed').length
+    const taskArray = tasks || []
+    const pending = taskArray.filter(t => t.status === 'pending').length
+    const inProgress = taskArray.filter(t => t.status === 'in_progress').length
+    const completed = taskArray.filter(t => t.status === 'completed').length
     
-    return { pending, inProgress, completed, total: tasks.length }
+    return { pending, inProgress, completed, total: taskArray.length }
   }, [tasks])
 
-  if (error && tasks.length === 0) {
+  if (apiError && (tasks || []).length === 0) {
     return (
       <div className="text-center py-12">
         <FileText className="mx-auto h-12 w-12 text-red-400 mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">
           Görevler yüklenemedi
         </h3>
-        <p className="text-gray-500 mb-4">{error}</p>
+        <p className="text-gray-500 mb-4">{apiError}</p>
         <Button onClick={handleRefresh} disabled={isLoading}>
           {isLoading ? (
             <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
@@ -139,7 +111,7 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
     )
   }
 
-  if (isLoading && tasks.length === 0) {
+  if (isLoading && (tasks || []).length === 0) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -158,7 +130,7 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
     )
   }
 
-  if (tasks.length === 0) {
+  if ((tasks || []).length === 0) {
     return (
       <div className="text-center py-12">
         <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
@@ -199,7 +171,7 @@ export default function TaskList({ clubId, userId }: TaskListProps) {
         </Button>
       </div>
 
-      {tasks.map((task) => (
+      {(tasks || []).map((task) => (
         <Card key={task.id} className="hover:shadow-md transition-shadow">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between">

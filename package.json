@@ -31,6 +31,7 @@
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.60.0",
     "react-pdf": "^10.0.1",
+    "supabase": "^2.31.8",
     "tailwind-merge": "^3.3.1",
     "zustand": "^5.0.6"
   },

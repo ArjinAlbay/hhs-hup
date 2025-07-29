@@ -3,8 +3,8 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { useClubsApi } from '@/hooks/useApi';
-import { validateClubData } from '@/lib/validation';
+import { useClubsApi } from '@/hooks/useSimpleApi';
+// If you have a Club type, import it, otherwise use the local one from useSimpleApi
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,14 +18,14 @@ import Link from 'next/link';
 export default function ClubListOptimized() {
   const { user, isAdmin, isLeader } = useAuth();
   const {
-    clubs,
-    isLoading,
+    data: clubs = [],
+    loading: isLoading,
     error,
-    pagination,
-    fetchClubs,
-    createClub,
-    selectClub,
+    get: fetchClubs,
+    post: createClub,
+    refetch
   } = useClubsApi();
+
 
   // Local state
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,13 +45,8 @@ export default function ClubListOptimized() {
 
   // Fetch clubs on mount and when filters change
   useEffect(() => {
-    fetchClubs({
-      page: currentPage,
-      limit: 12,
-      sortBy,
-      sortOrder,
-    });
-  }, [currentPage, sortBy, sortOrder]); // Removed fetchClubs from dependency array
+    fetchClubs && fetchClubs();
+  }, [fetchClubs]);
 
   // Handle form input changes
   const handleInputChange = (field: string, value: string) => {
@@ -66,16 +61,12 @@ export default function ClubListOptimized() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form
-    const validation = validateClubData(formData);
-    if (!validation.isValid) {
-      setFormErrors(validation.errors);
-      return;
-    }
+    
 
     setIsSubmitting(true);
     try {
-      await createClub(formData);
+      await createClub && createClub(formData);
+      fetchClubs && fetchClubs();
       setShowCreateDialog(false);
       setFormData({ name: '', description: '', type: 'social' });
       setFormErrors({});
@@ -89,10 +80,12 @@ export default function ClubListOptimized() {
   };
 
   // Filter clubs based on search term
-  const filteredClubs = clubs.filter(club =>
+  const filteredClubs = (clubs ?? []).filter((club: any) =>
     club.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    club.description.toLowerCase().includes(searchTerm.toLowerCase())
+    (club.description || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+  // Dummy selectClub function (replace with navigation if needed)
+  const selectClub = (club: any) => {};
 
   const getClubTypeColor = (type: string) => {
     switch (type) {
@@ -118,9 +111,9 @@ export default function ClubListOptimized() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Kulüpler</h1>
-          <p className="text-gray-600">
-            {pagination ? `${pagination.total} kulüp` : 'Kulüpleri görüntüleyin'}
-          </p>
+          {/* <p className="text-gray-600">
+            {(clubs?.length ?? 0) ? `${clubs?.length ?? 0} kulüp` : 'Kulüpleri görüntüleyin'}
+          </p> */}
         </div>
         {(isAdmin || isLeader) && (
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -195,7 +188,7 @@ export default function ClubListOptimized() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      {/* <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
@@ -226,13 +219,13 @@ export default function ClubListOptimized() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => fetchClubs({ page: currentPage, limit: 12, sortBy, sortOrder })}
+            onClick={() => fetchClubs && fetchClubs()}
             disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
-      </div>
+      </div> */}
 
       {/* Error State */}
       {error && (
@@ -241,7 +234,7 @@ export default function ClubListOptimized() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => fetchClubs({ page: currentPage, limit: 12 })}
+            onClick={() => fetchClubs && fetchClubs()}
             className="mt-2"
           >
             Yeniden Dene
@@ -250,7 +243,7 @@ export default function ClubListOptimized() {
       )}
 
       {/* Loading State */}
-      {isLoading && clubs.length === 0 && (
+      {isLoading && (clubs?.length ?? 0) === 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="bg-gray-200 animate-pulse rounded-lg h-48"></div>
@@ -289,16 +282,11 @@ export default function ClubListOptimized() {
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center">
                       <Users className="h-4 w-4 mr-1" />
-                      <span>Üye</span>
+                      <span>{club.memberCount} üye</span>
                     </div>
-                    <div className="flex items-center">
-                      <Calendar className="h-4 w-4 mr-1" />
-                      <span>Toplantı</span>
-                    </div>
-                    <div className="flex items-center">
-                      <CheckSquare className="h-4 w-4 mr-1" />
-                      <span>Görev</span>
-                    </div>
+
+                    
+
                   </div>
                   <Link
                     href={`/clubs/${club.id}`}
@@ -313,30 +301,7 @@ export default function ClubListOptimized() {
         </div>
       )}
 
-      {/* Pagination */}
-      {pagination && pagination.totalPages > 1 && (
-        <div className="flex items-center justify-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage === 1}
-            onClick={() => setCurrentPage(currentPage - 1)}
-          >
-            Önceki
-          </Button>
-          <span className="text-sm text-gray-600">
-            Sayfa {currentPage} / {pagination.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={currentPage === pagination.totalPages}
-            onClick={() => setCurrentPage(currentPage + 1)}
-          >
-            Sonraki
-          </Button>
-        </div>
-      )}
+    
     </div>
   );
 }

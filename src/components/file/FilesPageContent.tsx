@@ -10,10 +10,10 @@ import FileManager from './FileManager';
 
 export default function FilesPageContent() {
   const { user } = useAuth();
-  const { clubs } = useClubsApi();
+  const { data: clubs = [] } = useClubsApi();
   const [selectedClubId, setSelectedClubId] = useState<string>('');
 
-  const userClubs = clubs.filter(club => 
+  const userClubs = (clubs || []).filter(club => 
     (club.memberIds || []).includes(user?.id || '') || club.leaderId === user?.id
   );
 

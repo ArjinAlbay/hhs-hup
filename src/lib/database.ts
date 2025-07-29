@@ -23,19 +23,14 @@ export class DatabaseService {
 
     const { data, error, count } = await supabase
       .from('clubs')
-      .select(`
-        *,
-        leader:users!clubs_leader_id_fkey(name),
-        member_count:club_members(count)
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .eq('is_active', true)
       .order(sortBy, { ascending: sortOrder === 'asc' })
       .range(offset, offset + limit - 1)
 
     const transformedData = data?.map(club => ({
       ...club,
-      leaderName: club.leader?.name || 'Unknown',
-      memberCount: club.member_count?.[0]?.count || 0
+      memberCount: 0 // Set to 0 for now
     }))
 
     return {

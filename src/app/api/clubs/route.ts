@@ -2,11 +2,11 @@
 import { NextRequest } from 'next/server';
 
 import { withAuth, ApiResponse, parsePagination } from '@/lib/api-middleware';
-import { DatabaseService } from '@/lib/database';
+import { ServerDatabaseService } from '@/lib/database-server';
 
 
 // 🔒 GET /api/clubs - Get paginated clubs with role-based filtering
-export const GET = withAuth(async (request: NextRequest, user) => {
+export const GET = withAuth(async (request: NextRequest, _user) => {
   try {
     const { page, limit } = parsePagination(request);
     const { searchParams } = new URL(request.url);
@@ -27,7 +27,7 @@ export const GET = withAuth(async (request: NextRequest, user) => {
       }
     };
 
-    const { data, error } = await DatabaseService.getClubs(options, user.id);
+    const { data, error } = await ServerDatabaseService.getClubs(options);
 
     if (error) {
       console.error('Clubs fetch error:', error);

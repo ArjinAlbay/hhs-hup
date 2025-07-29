@@ -1,11 +1,10 @@
-// src/app/files/page.tsx
+import { MainLayoutContent } from '@/components/layout/MainLayout'
 import FilesPageContent from '@/components/file/FilesPageContent'
-import AuthLayout from '@/components/layout/AuthLayout'
 
 export default function FilesPage() {
   return (
-    <AuthLayout>
+    <MainLayoutContent>
       <FilesPageContent />
-    </AuthLayout>
+    </MainLayoutContent>
   )
 }

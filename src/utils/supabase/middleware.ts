@@ -40,6 +40,23 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  // Permission/role check (minimal engineering):
+  if (user && !isPublicRoute) {
+    // Fetch user profile for role
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    const validRoles = ['admin', 'club_leader', 'member']
+    if (!profile || !profile.role || !validRoles.includes(profile.role)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/unauthorized'
+      return NextResponse.redirect(url)
+    }
+  }
+
   if (user && currentPath.startsWith('/login')) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'

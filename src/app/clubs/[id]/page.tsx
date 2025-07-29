@@ -1,17 +1,17 @@
 
-import MainLayout from '@/components/layout/MainLayout';
-import ClubDetail from '@/components/club/ClubDetail';
+import { MainLayoutContent } from '@/components/layout/MainLayout'
+import ClubDetail from '@/components/club/ClubDetail'
 
 interface ClubDetailPageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string }>
 }
 
 export default async function ClubDetailPage({ params }: ClubDetailPageProps) {
-  const { id } = await params;
+  const { id } = await params
   
   return (
-    <MainLayout>
+    <MainLayoutContent>
       <ClubDetail clubId={id} />
-    </MainLayout>
-  );
+    </MainLayoutContent>
+  )
 }

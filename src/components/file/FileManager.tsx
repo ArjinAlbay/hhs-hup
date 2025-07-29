@@ -66,13 +66,13 @@ export default function FileManager({ clubId }: FileManagerProps) {
     fetchFolders(clubId, { parentId: currentFolder?.id });
   }, [clubId, currentFolder]); // Removed fetch functions from dependency array
 
-  const filteredFiles = files.filter(file =>
-    file.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  const filteredFiles = (files || []).filter(file =>
+    file.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     file.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredFolders = folders.filter(folder =>
-    folder.name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredFolders = (folders || []).filter(folder =>
+    folder.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getFileIcon = (type: string) => {

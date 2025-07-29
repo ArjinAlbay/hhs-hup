@@ -19,21 +19,35 @@ interface ClubDetailProps {
 
 export default function ClubDetail({ clubId }: ClubDetailProps) {
   const { user, isLeader, isAdmin } = useAuth();
-  const { clubs, isLoading: clubsLoading, fetchClubs } = useClubsApi();
-  const { tasks, fetchTasks, isLoading: tasksLoading } = useTasksApi();
+  const { data: clubs = [], loading: clubsLoading, get: fetchClubs } = useClubsApi();
+  const { data: tasks = [], get: fetchTasks, loading: tasksLoading } = useTasksApi();
   
   // Find current club from clubs array
-  const currentClub = clubs.find(club => club.id === clubId);
+  const currentClub = (clubs || []).find(club => club.id === clubId);
   const isLoading = clubsLoading || tasksLoading;
+
+  // State for meeting and file counts
+  const [meetingCount, setMeetingCount] = useState<number | null>(null);
+  const [fileCount, setFileCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Fetch stats from API route
+    fetch(`/api/club-stats/${clubId}`)
+      .then(res => res.json())
+      .then(data => {
+        setMeetingCount(data.meetingCount ?? 0);
+        setFileCount(data.fileCount ?? 0);
+      });
+  }, [clubId]);
   
   useEffect(() => {
-    if (clubs.length === 0) {
+    if ((clubs || []).length === 0) {
       fetchClubs();
     }
-    fetchTasks({ clubId });
-  }, [clubId, clubs.length]); // Removed fetch functions from dependency array
+    fetchTasks(`?clubId=${clubId}`);
+  }, [clubId, (clubs || []).length]); // Removed fetch functions from dependency array
 
-  const isClubLeader = currentClub?.leaderId === user?.id;
+  const isClubLeader = currentClub?.leader_id === user?.id;
   const canManage = isAdmin || isClubLeader;
 
   if (isLoading) {
@@ -95,17 +109,17 @@ export default function ClubDetail({ clubId }: ClubDetailProps) {
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <CheckSquare className="mx-auto h-6 w-6 text-gray-400 mb-2" />
-            <p className="text-2xl font-bold text-gray-900">{tasks.length}</p>
+            <p className="text-2xl font-bold text-gray-900">{(tasks || []).length}</p>
             <p className="text-sm text-gray-600">Görev</p>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <Calendar className="mx-auto h-6 w-6 text-gray-400 mb-2" />
-            <p className="text-2xl font-bold text-gray-900">3</p>
+            <p className="text-2xl font-bold text-gray-900">{meetingCount === null ? '-' : meetingCount}</p>
             <p className="text-sm text-gray-600">Toplantı</p>
           </div>
           <div className="text-center p-4 bg-gray-50 rounded-lg">
             <FileText className="mx-auto h-6 w-6 text-gray-400 mb-2" />
-            <p className="text-2xl font-bold text-gray-900">12</p>
+            <p className="text-2xl font-bold text-gray-900">{fileCount === null ? '-' : fileCount}</p>
             <p className="text-sm text-gray-600">Dosya</p>
           </div>
         </div>

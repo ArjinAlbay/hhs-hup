@@ -1,10 +1,10 @@
+import { MainLayoutContent } from '@/components/layout/MainLayout'
 import MeetingsPageContent from '@/components/meeting/MeetingsPageContent'
-import AuthLayout from '@/components/layout/AuthLayout'
 
 export default function MeetingsPage() {
   return (
-    <AuthLayout>
+    <MainLayoutContent>
       <MeetingsPageContent />
-    </AuthLayout>
+    </MainLayoutContent>
   )
 }
